@@ -1,0 +1,53 @@
+<launch>
+    <arg name="is_run" default="false" />
+    <arg name="is_sim" default="true" />
+    
+    <arg name="is_robot1" default="true" />
+    <arg name="is_robot2" default="false" />
+    <arg name="is_rival1" default="false" />
+    <arg name="is_rival2" default="false" />
+
+    <arg name="robot_name" default="robot1" if="$(arg is_robot1)"/>
+    <arg name="robot_name" default="robot2" if="$(arg is_robot2)"/>
+    <arg name="robot_name" default="rival1" if="$(arg is_rival1)"/>
+    <arg name="robot_name" default="rival2" if="$(arg is_rival2)"/>
+
+    <remap from="/robot1/Toposition" to="/Toposition" unless="$(arg is_sim)"/>
+    <remap from="/robot1/cmd_vel" to="/cmd_vel" unless="$(arg is_sim)"/>
+    <group ns="$(arg robot_name)">
+        <node pkg="map_server" type="map_server" name="map_server" args="$(find navigation_run)/map/basic_map.yaml">
+            <param name="frame_id" value="robot1/map" if="$(arg is_robot1)"/>
+            <param name="frame_id" value="robot2/map" if="$(arg is_robot2)"/>
+        </node>
+
+        <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 $(arg robot_name)/map $(arg robot_name)/odom 20"/>
+
+        <node pkg="navigation_run" type="odometry_sim" name="odometry">
+            <param name="tf_prefix" value="$(arg robot_name)" />
+            <param name="cmd_cb_name" value="/Toposition" unless="$(arg is_sim)" />
+        </node>
+
+        <include file="$(find navigation_run)/launch/move_base.launch">
+            <arg name="is_robot1" value="$(arg is_robot1)"/>
+            <arg name="is_robot2" value="$(arg is_robot2)"/>
+        </include>
+
+        <!-- <node pkg="navigation_run" type="lpf" name="lpf" output="screen">
+            <param name="beta" value="0.2"/>
+            <param name="shutdown_dist" value="0.1" />
+            <param name="publish_frequency" value="50"/> -->
+        <!-- </node> -->
+
+        <node name="obs_position" pkg="obstacle_simulation" type="obs_position" output="screen">
+        <rosparam file="$(find obstacle_simulation)/config/params.yaml" command="load"/> 
+        </node> 
+
+        <node pkg="goal_pointer" type="goal_pointer" name="goal_pointer" output="screen"/>
+
+        <node pkg="path_solver" type="path_solver" name="path_solver" output="screen"/>
+            <!-- <remap from="cmd_vel" to="/robot1/cmd_vel"/> -->
+        <!-- </node> -->
+    
+    </group>
+    
+</launch>

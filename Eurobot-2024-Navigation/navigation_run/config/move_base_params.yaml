@@ -1,0 +1,201 @@
+# move_base params
+# base_global_planner: "navfn/NavfnROS"
+base_global_planner: "global_planner/GlobalPlanner"
+base_local_planner: "teb_local_planner/TebLocalPlannerROS"
+# base_local_planner: "dwa_local_planner/DWAPlannerROS"
+# base_local_planner: "base_local_planner/TrajectoryPlannerROS"
+controller_frequency: 10.0
+planner_patience: 15.0
+controller_patience: 2.0
+conservative_reset_dist: 3.0
+recovery_behavior: false 
+clearing_rotation_allowed: False
+shutdown_costmaps: false
+oscillation_timeout: 0.0
+oscillation_distance: 0.0
+planner_frequency: 5.0
+max_planning_retries: 1
+
+# global planner params
+GlobalPlanner:
+  allow_unknown: false
+  default_tolerance: 0.0
+  visualize_potential: true
+  use_dijkstra: true
+  use_quadratic: true
+  use_grid_path: false
+  old_navfn_behavior: false
+  lethal_cost: 253
+  neutral_cost: 50
+  cost_factor: 3
+  publish_potential: true
+  orientation_mode: 2
+  orientation_window_size: 1
+  outline_map: true
+# navfn parameters
+NavfnROS:
+  allow_unknown: true 
+  planner_window_x: 0.0
+  planner_window_y: 0.0
+  default_tolerance: 1
+  visualize_potential: true
+
+# local planner paramshysteresis 
+# teb_local_planner params
+TebLocalPlannerROS:
+  odom_topic: odom
+  map_frame: map
+
+  # Robot Configuration Parameters
+  acc_lim_x: 0.4
+  acc_lim_y: 0.4
+  acc_lim_theta: 1.0
+  max_vel_x: 2.0
+  max_vel_y: 2.0
+  max_vel_x_backwards: 2.0
+  max_vel_theta: 1.0
+  min_turning_radius: 0.0
+  wheelbase: 0
+  footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
+    type: "circular"
+    radius: 0.14 # for type "circular"
+    # line_start: [-0.3, 0.0] # for type "line"
+    # line_end: [0.3, 0.0] # for type "line"
+    # front_offset: 0.2 # for type "two_circles"
+    # front_radius: 0.2 # for type "two_circles"
+    # rear_offset: 0.2 # for type "two_circles"
+    # rear_radius: 0.2 # for type "two_circles"
+    # vertices: [ [0.25, -0.05], [0.18, -0.05], [0.18, -0.18], [-0.19, -0.18], [-0.25, 0], [-0.19, 0.18], [0.18, 0.18], [0.18, 0.05], [0.25, 0.05] ] # for type "polygon"
+  is_footprint_dynamic: true
+
+  # GoalTolerance
+  xy_goal_tolerance: 0.02
+  yaw_goal_tolerance: 0.15
+  free_goal_vel: false
+
+  # Trajectory Configuration
+  dt_ref: 0.1
+  dt_hysteresis: 0.02
+  min_samples: 3
+  global_plan_overwrite_orientation: false
+  max_global_plan_viapoint_sep: 1.0
+  max_global_plan_lookahead_dist: 3.0
+  force_reinit_new_goal_dist: 0.0
+  feasibility_check_no_poses: 20
+  publish_feedback: true
+  shrink_horizon_backup: true
+  allow_init_with_backwards_motion: true 
+  exact_arc_length: false
+  shrink_horizon_min_duration: 10.0
+  
+  # Obstacles
+  min_obstacle_dist: 0.03
+  include_costmap_obstacles: true
+  costmap_obstacles_behind_robot_dist: 0.03
+  obstacle_poses_affected: 30
+  inflation_dist: 0
+  include_dynamic_obstacles: false
+  legacy_obstacle_association: false
+  obstacle_association_force_inclusion_factor: 1.5
+  obstacle_association_cutoff_factor: 3
+
+  costmap_converter_plugin: ""
+  costmap_converter_spin_thread: True
+  costmap_converter_rate: 0
+  include_dynamic_obstacles: True 
+
+  # Optimization
+  no_inner_iterations: 5
+  no_outer_iterations: 4
+  penalty_epsilon: 0.05
+  weight_max_vel_x: 5
+  weight_max_vel_y: 5
+  weight_max_vel_theta: 5
+  weight_acc_lim_x: 0.3
+  weight_acc_lim_y: 0.3
+  weight_acc_lim_theta: 1
+  weight_kinematics_nh: 5
+  weight_kinematics_forward_drive: 0
+  weight_kinematics_turning_radius: 0
+  weight_optimaltime: 1
+  weight_obstacle: 10
+  weight_viapoint: 1
+  weight_inflation: 0.1
+  weight_adapt_factor: 1.0
+
+  # Homotopy Class Planner
+  enable_homotopy_class_planning: false
+  enable_multithreading: True
+  max_number_classes: 4
+  selection_cost_hysteresis: 1.0
+  selection_obst_cost_scale: 1.0
+  selection_viapoint_cost_scale: 0.3
+  selection_alternative_time_cost: false
+  roadmap_graph_no_samples: 15
+  roadmap_graph_area_width: 5
+  h_signature_prescaler: 0.5
+  h_signature_threshold: 0.1
+  obstacle_heading_threshold: 0.03
+  visualize_hc_graph: False
+  viapoints_all_candidates: false
+  switching_blocking_period: 0.0
+
+# costmap common params
+robot_radius: 0.144
+inflation_radius: 0
+
+# global costmap params
+global_costmap:
+  global_frame: map
+  robot_base_frame: base_footprint
+  transform_tolerance: 0.10
+  
+  # Rate parameters
+  update_frequency: 15.0
+  publish_frequency: 1.0
+  rolling_window: false
+  always_send_full_costmap: false
+
+  plugins:
+    - {name: static_layer, type: "costmap_2d::StaticLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+    # - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"} 
+
+  static_layer:
+    enabled: true 
+    map_topic: map
+    subscribe_to_updates: false 
+    trinary_costmap: false 
+    lethal_cost_threshold: 253
+
+  inflation_layer:
+    inflation_radius: 0.1
+    cost_scaling_factor: 50
+
+# local costmap params
+local_costmap:
+  global_frame: map
+  robot_base_frame: base_footprint
+  transform_tolerance: 0.10
+  
+  # Rate parameters
+  update_frequency: 15.0
+  publish_frequency: 1.0
+  rolling_window: false
+  always_send_full_costmap: false
+
+  plugins:
+    - {name: static_layer, type: "costmap_2d::StaticLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+    # inflation layer?
+  
+  static_layer:
+    enabled: true 
+    map_topic: map 
+    subscribe_to_updates: false
+    trinary_costmap: false
+    lethal_cost_threshold: 253
+  
+  inflation_layer:
+    inflation_radius: 0.03
+    cost_scaling_factor: 0.1

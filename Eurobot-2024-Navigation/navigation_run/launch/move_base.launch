@@ -1,0 +1,26 @@
+<launch>
+    <arg name="is_robot1" default="true"/>
+    <arg name="is_robot2" default="false"/>
+
+    <arg name="num" default="1" if="$(arg is_robot1)"/>
+    <arg name="num" default="2" if="$(arg is_robot2)"/>
+
+    <!-- <remap from="/robot1/move_base/TebLocalPlannerROS/via_points" to="/robot1/move_base/GlobalPlanner/plan" /> -->
+    <!-- <remap from="/robot1/cmd_vel" to="/robot1/raw_cmd_vel" /> -->
+    <node pkg="move_base" type="move_base" name="move_base" output="screen">
+        <rosparam file="$(find navigation_run)/config/move_base_params.yaml" command="load"/>
+
+        <param name="global_costmap/global_frame" value="robot$(arg num)/map" />
+        <param name="global_costmap/robot_base_frame" value="robot$(arg num)/base_footprint" />
+        <param name="local_costmap/global_frame" value="robot$(arg num)/map" />
+        <param name="local_costmap/robot_base_frame" value="robot$(arg num)/base_footprint" />
+    </node>
+
+    <!-- <node pkg="navigation_run" type="get_obstacles" name="get_obstacles" output="screen">
+        <param name="oppo_name" value="robot2" if="$(arg is_robot1)"/>
+        <param name="my_name" value="robot1" if="$(arg is_robot1)"/>
+
+        <param name="oppo_name" value="robot1" if="$(arg is_robot2)"/>
+        <param name="my_name" value="robot2" if="$(arg is_robot2)"/>
+    </node> -->
+</launch>
