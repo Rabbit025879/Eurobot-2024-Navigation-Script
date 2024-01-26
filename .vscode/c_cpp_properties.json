@@ -1,0 +1,41 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/tu/Eurobot-2024-ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/amcl/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/base_local_planner/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/carrot_planner/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/clear_costmap_recovery/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/costmap_2d/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/costmap_converter/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/dwa_local_planner/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/global_planner/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/goal_pointer/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/map_server/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/move_base/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/move_slow_and_clear/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/nav_core/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/navfn/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/obstacle_detector/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/obstacle_simulation/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/path_solver/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/rotate_recovery/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/teb_local_planner/include/**",
+        "/home/tu/Eurobot-2024-ws/src/Eurobot-2024-Navigation-Script/Eurobot-2024-Navigation/navigation-stack/voxel_grid/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
