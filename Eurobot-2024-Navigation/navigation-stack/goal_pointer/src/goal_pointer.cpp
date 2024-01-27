@@ -61,16 +61,16 @@ double vel_controller(double diff, double vel_input, float max_speed){
 
     if(vel_status == Velocity_Status::Acceleration){
         vel_output += 0.00002;
-        if(vel_output >= max_speed || diff <= 0.12*initial_diff) vel_status = Velocity_Status::Max_Speed;
+        if(vel_output >= max_speed || diff <= 0.1*initial_diff) vel_status = Velocity_Status::Max_Speed;
         // ROS_INFO("Acceleration");
     }
     else if(vel_status == Velocity_Status::Max_Speed){
-        if(diff <= 0.12*initial_diff)   vel_status = Velocity_Status::Deceleration;
+        if(diff <= 0.1*initial_diff)   vel_status = Velocity_Status::Deceleration;
         // ROS_INFO("Max_Speed");
     }
     else if(vel_status == Velocity_Status::Deceleration){
-        vel_output -= 0.00002;
-        if(vel_output <= 0.06) vel_status = Velocity_Status::Approaching;
+        vel_output = diff * 2.5;
+        if(vel_output <= 0.02) vel_status = Velocity_Status::Approaching;
         // ROS_INFO("Deceleration");
     }
     else if(vel_status == Velocity_Status::Approaching){
@@ -80,8 +80,8 @@ double vel_controller(double diff, double vel_input, float max_speed){
 
     // ROS_INFO("initial_diff -> %lf", initial_diff);
     // ROS_INFO("diff -> %lf", diff);
-    ROS_INFO("vel_output -> %lf", vel_output);
-    //vel_output = 0.5;
+    // ROS_INFO("vel_output -> %lf", vel_output);
+    // vel_output = 0.5;
 
     return vel_output;
 }
@@ -129,38 +129,53 @@ double vel_controller(double diff, double vel_input, float max_speed){
 //Facing
 int facing_dirction(double diff_spin, double diff_face){
     int dir_facing = 0;
+    double diff_spin_face = 0.0;
+    double forward = 0.0;
+    double backward = 0.0;
 
-    //Determine direction
-    // if((diff_face*diff_spin) < 0){
-    if(diff_spin >= 0 && diff_spin <= PI/2)  dir_facing = 1;
-    else if(diff_spin > PI/2)   dir_facing = -1;
-    else if(diff_spin < 0 && diff_spin >= -PI/2)  dir_facing = -1;
-    else if(diff_spin < -PI/2)  dir_facing = 1;
+    // // If it is local goal
+    // if((goal_x != final_goal_x) && (goal_y != final_goal_y)){
+    //     diff_spin = 0;
+    // }
+
+    // // Calculate the difference between spin & face
+    // diff_spin_face = fabs(diff_spin - diff_face);
+    // if(diff_spin_face > PI) diff_spin_face = 2*PI-diff_spin_face;
+
+    // // Evaluate choices & determine direction
+    // forward = fabs(diff_face) + fabs(diff_spin_face);
+    // backward = (PI-fabs(diff_face)) + (PI-fabs(diff_spin_face)); 
+    // if(forward > backward){
+    //     if(diff_face >= 0)  dir_facing = -1;
+    //     else    dir_facing = 1;
     // }
     // else{
+    //     if(diff_face >= 0)  dir_facing = 1;
+    //     else    dir_facing = -1;
+    // }
+    // ROS_INFO("face -> %lf, spin -> %lf, diff -> %lf", diff_face, diff_spin, diff_spin_face);
+    // ROS_INFO("forward -> %lf, backward -> %lf", forward, backward);
+    // if(diff_spin >= 0 && diff_spin <= PI/2)  dir_facing = 1;
+    // else if(diff_spin > PI/2)   dir_facing = -1;
+    // else if(diff_spin < 0 && diff_spin >= -PI/2)  dir_facing = -1;
+    // else if(diff_spin < -PI/2)  dir_facing = 1;
+    
+    if(diff_face >= 0)  dir_facing = -1;
+    else dir_facing = 1;
 
-    // }
-
-    // if(diff_face >= 0){
-    //     if(diff_face <= PI/2)   dir_facing = 1;
-    //     else if(diff_face > PI/2)   dir_facing = -1;
-    // }
-    // else if(diff_face < 0){
-    //     if(diff_face >= -PI/2)  dir_facing = -1;
-    //     else if(diff_face < -PI/2)  dir_facing = 1;
-    // }
     return dir_facing;
 }
 //Moving
 int moving_direction(double diff_face, double dis_prev, double dis_now){
     int dir_moving = 1;
-    int data = 0;
+    int data = 1;
     //Closer or farer
-    if(dis_now <= dis_prev) data = 1;
-    else    data = -1;
+    // if(dis_now <= dis_prev) data = 1;
+    // else    data = -1;
     //Determine direction
-    if(fabs(diff_face) < 0.05) dir_moving = 1*data;
-    else if(fabs(diff_face) > PI-0.05) dir_moving = -1*data;
+    if(fabs(diff_face) < 1) dir_moving = 1*data;
+    else if(fabs(diff_face) > PI-1) dir_moving = -1*data;
+    // ROS_INFO("diff_face -> %lf", diff_face);
     return dir_moving;
 }
 //Spinning
@@ -215,6 +230,7 @@ int main(int argc, char** argv){
     //delay
     int delay = 0;
     int wait = 0;
+    int cnt = 0;
 
     //Massages      
     std_msgs::Bool  goal_reached;
@@ -276,6 +292,7 @@ int main(int argc, char** argv){
         //Calculate the difference between target goal & robot pose
         diff_x = goal_x - pose_x;   //difference between x
         diff_y = goal_y - pose_y;   //difference between y
+
         //Calculate angular difference between goal & robot(-PI to PI)
         if(goal_face >= robot_face){
             if(goal_face-robot_face <= PI)    diff_spin = goal_face - robot_face; 
@@ -296,6 +313,9 @@ int main(int argc, char** argv){
             else if(robot_face-path_face > PI) diff_face = 2*PI - (robot_face - path_face);
         }
 
+        // If it is a local goal
+        if((goal_x != final_goal_x) && (goal_y != final_goal_y))    diff_spin = 0;
+
         //--------------------------------------------------------
         //Point to point
         //-------------------------------------------------------- 
@@ -306,11 +326,13 @@ int main(int argc, char** argv){
             diff_spin_initial = diff_spin;
             diff_face_initial = diff_face;
             wait = 0;
-            //Determine goal pointer
+
+                    //Determine goal pointer    
             if(diff_y > 0)  path_face = fabs(acos(diff_x/dis));    //Calculate path twist
             else if(diff_y < 0)   path_face = 2*PI - fabs(acos(diff_x/dis));
             else if(diff_y == 0 && diff_x > 0) path_face = 0;
             else if(diff_y == 0 && diff_x < 0) path_face = PI;
+
             //If goal suddenly changed
             // facing_done = 0;
             // moving_done = 0;
@@ -326,7 +348,7 @@ int main(int argc, char** argv){
                 if(point_to_point_process == Mode::Facing){
                     DEBUG = 1;
                     //Execute
-                    if(fabs(diff_face) < 0.05 || fabs(diff_face) > PI-0.05){
+                    if(fabs(diff_face) < 0.03 || fabs(diff_face) > PI-0.03){
                         delay++;
                         if(delay <= 22){
                             base_vel_spin = 0;
@@ -374,14 +396,15 @@ int main(int argc, char** argv){
                         //     }
                         // }
                     }
-                    else if(fabs(diff_x) >= 0.02 || fabs(diff_y) >= 0.02)   base_vel_x = vel_controller(dis_now, base_vel_x, max_speed_linear)*moving_direction(diff_face, dis_prev, dis_now);  
-                    dis_prev = dis_now;
+                    else if(fabs(diff_x) >= 0.05 || fabs(diff_y) >= 0.05)   base_vel_x = vel_controller(dis_now, base_vel_x, max_speed_linear)*moving_direction(diff_face, dis_prev, dis_now);  
+                    if((cnt % 10000) == 0) dis_prev = dis_now;
+                    cnt++;
                 }
 
                 // Finally, we rotate to the target pose
                 if(point_to_point_process == Mode::Turnning){
                     DEBUG = 3;
-                    if(fabs(diff_spin) < 0.05){
+                    if(fabs(diff_spin) < 0.03){
                         delay++;
                         if(delay >= 22){
                             base_vel_spin = 0;
