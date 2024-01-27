@@ -6,5 +6,6 @@
     "python.analysis.extraPaths": [
         "/home/tu/Eurobot-2024-ws/devel/lib/python3/dist-packages",
         "/opt/ros/noetic/lib/python3/dist-packages"
-    ]
+    ],
+    "ros.distro": "noetic"
 }

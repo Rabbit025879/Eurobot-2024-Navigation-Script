@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.1'
 
 services:
   navigation-script:
@@ -14,7 +14,7 @@ services:
     # mount our navigation code
     volumes:
       # [IMPORTANT 2/3] Change the path to the navigation workspace on your host machine
-      - ${HOME}/Eurobot2024-machine-ws/:/home/user/Eurobot2024-Navigation-script-ws
+      - ${HOME}/Eurobot-2024-ws/:/home/user/Eurobot2024-Navigation-script-ws
       - /tmp/.X11-unix:/tmp/.X11-unix
       - $HOME/.Xauthority:/home/user/.Xauthority 
       - /dev:/dev
