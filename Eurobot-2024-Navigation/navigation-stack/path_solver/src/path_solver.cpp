@@ -1,6 +1,7 @@
 #include "path_solver.h"
 
 bool is_sim = 1;
+bool lidar_on = 0;
 
 //DEBUG
 double buffer[10] = {0.0};
@@ -15,7 +16,7 @@ bool is_goal_reached = 0;
 Point goal;
 //Robot pose
 Point pose_sim;
-Point pose_real;
+Point pose_ekf;
 Point pose;
 //Convert
 nav_msgs::Odometry OS;
@@ -422,9 +423,9 @@ void getodom_sim(const nav_msgs::Odometry& robot_sim_pose){
 }
 
 //Get robot pose for real
-void getodom_real(const geometry_msgs::PoseWithCovarianceStamped& robot_real_pose){
-    pose_real.x = robot_real_pose.pose.pose.position.x;
-    pose_real.y = robot_real_pose.pose.pose.position.y;
+void getodom_ekf(const geometry_msgs::PoseWithCovarianceStamped& robot_ekf_pose){
+    pose_ekf.x = robot_ekf_pose.pose.pose.position.x;
+    pose_ekf.y = robot_ekf_pose.pose.pose.position.y;
     // ROS_FATAL("pose.real : (%lf,%lf)", pose.x, pose.y);
         // OR = robot_real_pose;
 }
@@ -449,7 +450,7 @@ int main(int argc, char** argv){
     ros::Subscriber obs_sub_real = nh.subscribe("obstacle_array", 1000, getobs_real);
     ros::Subscriber goal_sub = simple_nh.subscribe("goal", 1, getgoal);
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
-    ros::Subscriber pose_real_sub = nh.subscribe("ekf_pose",1,getodom_real);
+    ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
     ros::Subscriber reached_sub = nh.subscribe("goal_reached",1,goal_reached);
     ros::Publisher obs_pub_Point = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position",1000);
 
@@ -520,7 +521,8 @@ int main(int argc, char** argv){
             obs_pose = obs_pose_sim;
         }
         else{
-            pose = pose_real;
+            if(lidar_on == true)    pose = pose_ekf;
+            else    pose = pose_sim;
             obs_pose.reserve(obs_pose_real.size());
             obs_pose = obs_pose_real;
         }

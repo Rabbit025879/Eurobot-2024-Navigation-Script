@@ -1,6 +1,6 @@
 #include "goal_pointer.h"
 
-bool is_sim = 1;
+bool lidar_on = 0; 
 
 //DEBUG
 int DEBUG = 0;
@@ -15,13 +15,13 @@ double final_goal_y = 0.0;
 //Robot pose
 double pose_sim_x = 0.0;
 double pose_sim_y = 0.0;
-double pose_real_x = 0.0;
-double pose_real_y = 0.0;
+double pose_ekf_x = 0.0;
+double pose_ekf_y = 0.0;
 double pose_x = 0.0;
 double pose_y = 0.0;
 //Convert
 nav_msgs::Odometry OS;
-geometry_msgs::PoseWithCovarianceStamped OR;
+geometry_msgs::PoseWithCovarianceStamped OE;
 geometry_msgs::PoseStamped G;
 
 //Get node goal
@@ -42,10 +42,10 @@ void getodom_sim(const nav_msgs::Odometry& robot_sim_pose){
     OS = robot_sim_pose;
 }
 //Get robot pose for real
-void getodom_real(const geometry_msgs::PoseWithCovarianceStamped& robot_real_pose){
-    pose_real_x = robot_real_pose.pose.pose.position.x;
-    pose_real_y = robot_real_pose.pose.pose.position.y;
-    OR = robot_real_pose;
+void getodom_ekf(const geometry_msgs::PoseWithCovarianceStamped& robot_ekf_pose){
+    pose_ekf_x = robot_ekf_pose.pose.pose.position.x;
+    pose_ekf_y = robot_ekf_pose.pose.pose.position.y;
+    OE = robot_ekf_pose;
 }
 double initial_diff = 0;
 bool once_vel_controller = 0;
@@ -198,7 +198,7 @@ int main(int argc, char** argv){
     ros::Subscriber goal_sub = nh.subscribe("point", 1, getgoal);
     ros::Subscriber final_goal_sub = simple_nh.subscribe("goal", 1, getfinalgoal);
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
-    ros::Subscriber pose_real_sub = nh.subscribe("ekf_pose",1,getodom_real);
+    ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
 
     //Finite state machine
     Mode point_to_point_process = Mode::Facing;
@@ -245,13 +245,13 @@ int main(int argc, char** argv){
     while(ros::ok()){
         //Callback
         ros::spinOnce();
-        if(is_sim == true){
+        if(lidar_on == false){
             pose_x = pose_sim_x;
             pose_y = pose_sim_y;
         }
         else{
-            pose_x = pose_real_x;
-            pose_y = pose_real_y;
+            pose_x = pose_ekf_x;
+            pose_y = pose_ekf_y;
         }
         // ROS_INFO("pose.goal_pointer -> (%lf, %lf)", pose_x, pose_y);
         //--------------------------------------------------------
@@ -259,7 +259,7 @@ int main(int argc, char** argv){
         //--------------------------------------------------------
 
         //Convert robot pose (quaterion -> RPY)
-        if(is_sim == 1){
+        if(lidar_on == false){
             tf2::Quaternion oS;
             tf2::fromMsg(OS.pose.pose.orientation, oS);
             tf2::Matrix3x3 ot(oS);
@@ -269,13 +269,13 @@ int main(int argc, char** argv){
             else robot_face = 2*PI - fabs(yaw_OS);
         }
         else{
-            tf2::Quaternion oR;
-            tf2::fromMsg(OR.pose.pose.orientation, oR);
-            tf2::Matrix3x3 ot(oR);
-            double _OR, yaw_OR;
-            ot.getRPY(_OR, _OR, yaw_OR);
-            if(yaw_OR >= 0)  robot_face = yaw_OR;
-            else robot_face = 2*PI - fabs(yaw_OR);
+            tf2::Quaternion oE;
+            tf2::fromMsg(OE.pose.pose.orientation, oE);
+            tf2::Matrix3x3 ot(oE);
+            double _OE, yaw_OE;
+            ot.getRPY(_OE, _OE, yaw_OE);
+            if(yaw_OE >= 0)  robot_face = yaw_OE;
+            else robot_face = 2*PI - fabs(yaw_OE);
         }
 
         //Convert robot pose (quaterion -> RPY)
