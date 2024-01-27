@@ -1,3 +1,0 @@
-<launch>
-    <node pkg="rviz" type="rviz" name="rviz2" args="-d $(find navigation_run)/rviz/rviz_sim.rviz" />
-</launch>
