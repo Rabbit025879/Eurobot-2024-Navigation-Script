@@ -10,13 +10,22 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nav_msgs/Odometry.h>
-        
+
 #define PI 3.14159
+#define max_speed_linear 0.5
+#define max_speed_angular 0.7
 
 enum class Mode{
     Facing = 0,
     Moving,
     Turnning
+};
+
+enum class Velocity_Status{
+    Acceleration = 0,
+    Max_Speed,
+    Deceleration,
+    Approaching
 };
 
 #endif

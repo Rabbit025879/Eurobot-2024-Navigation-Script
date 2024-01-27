@@ -47,26 +47,41 @@ void getodom_real(const geometry_msgs::PoseWithCovarianceStamped& robot_real_pos
     pose_real_y = robot_real_pose.pose.pose.position.y;
     OR = robot_real_pose;
 }
+double initial_diff = 0;
+bool once_vel_controller = 0;
+Velocity_Status vel_status = Velocity_Status::Acceleration;
 //velocity controller
-double vel_controller(double diff){
-    double vel_output = 0.5;
-    double a = 0;
-    double initial_diff = 0;
-    bool once = 0;
-    int kp = 0.5;
+double vel_controller(double diff, double vel_input, float max_speed){
+    double vel_output = fabs(vel_input);
 
-    if(once == 0){
+    if(once_vel_controller == 0){
         initial_diff = diff;
-        once = 1;
+        once_vel_controller = 1;
     }
 
-    // if(diff <= 0.2*initial_diff)    vel_output = 0.2;
-    // else if(diff >= 0.2*initial_diff)   vel_output = 0.2;
-    // else    vel_output = 0.6;
-    // vel_output = diff*kp;
+    if(vel_status == Velocity_Status::Acceleration){
+        vel_output += 0.00002;
+        if(vel_output >= max_speed || diff <= 0.12*initial_diff) vel_status = Velocity_Status::Max_Speed;
+        // ROS_INFO("Acceleration");
+    }
+    else if(vel_status == Velocity_Status::Max_Speed){
+        if(diff <= 0.12*initial_diff)   vel_status = Velocity_Status::Deceleration;
+        // ROS_INFO("Max_Speed");
+    }
+    else if(vel_status == Velocity_Status::Deceleration){
+        vel_output -= 0.00002;
+        if(vel_output <= 0.06) vel_status = Velocity_Status::Approaching;
+        // ROS_INFO("Deceleration");
+    }
+    else if(vel_status == Velocity_Status::Approaching){
+        vel_output = 0.02;
+        // ROS_INFO("Approaching");
+    }
+
+    // ROS_INFO("initial_diff -> %lf", initial_diff);
     // ROS_INFO("diff -> %lf", diff);
-    // ROS_INFO("diff -> %lf", vel_output);
-    // if(vel_output > 0.5)    vel_output = 0.5;
+    ROS_INFO("vel_output -> %lf", vel_output);
+    //vel_output = 0.5;
 
     return vel_output;
 }
@@ -315,12 +330,17 @@ int main(int argc, char** argv){
                         delay++;
                         if(delay <= 22){
                             base_vel_spin = 0;
+
+                            initial_diff = 0;
+                            once_vel_controller = 0;
+                            vel_status = Velocity_Status::Acceleration;
+
                             point_to_point_process = Mode::Moving;
                             delay++;
                         }
                     }
                     else{
-                        base_vel_spin = /*vel_controller(fabs(diff_face))*/0.7*facing_dirction(diff_spin_initial, diff_face_initial);
+                        base_vel_spin = vel_controller(fabs(diff_face), base_vel_spin, max_speed_angular)*facing_dirction(diff_spin_initial, diff_face_initial);
                     }
                 }
 
@@ -332,6 +352,11 @@ int main(int argc, char** argv){
                     if(fabs(diff_x) < 0.05 && fabs(diff_y) < 0.05){
                         base_vel_x = 0;
                         goal_reached.data = true;
+
+                        initial_diff = 0;
+                        once_vel_controller = 0;
+                        vel_status = Velocity_Status::Acceleration;
+
                         point_to_point_process = Mode::Turnning;
                         // if(goal_x == final_goal_x && goal_y == final_goal_y){
                         //     delay++;
@@ -349,7 +374,7 @@ int main(int argc, char** argv){
                         //     }
                         // }
                     }
-                    else if(fabs(diff_x) >= 0.05 || fabs(diff_y) >= 0.05)   base_vel_x = vel_controller(dis_now)*moving_direction(diff_face, dis_prev, dis_now);  
+                    else if(fabs(diff_x) >= 0.02 || fabs(diff_y) >= 0.02)   base_vel_x = vel_controller(dis_now, base_vel_x, max_speed_linear)*moving_direction(diff_face, dis_prev, dis_now);  
                     dis_prev = dis_now;
                 }
 
@@ -363,10 +388,14 @@ int main(int argc, char** argv){
                             new_goal = 0;
                             goal_reached.data = false;
                             delay = 0;
+
+                            initial_diff = 0;
+                            once_vel_controller = 0;
+                            vel_status = Velocity_Status::Acceleration;
                         }
                     }
                     else{
-                        base_vel_spin = /*vel_controller(fabs(diff_spin))*/0.7*spinning_direction(diff_spin);
+                        base_vel_spin = vel_controller(fabs(diff_spin), base_vel_spin, max_speed_angular)*spinning_direction(diff_spin);
                     }            
                 }   
             }
