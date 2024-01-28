@@ -456,8 +456,12 @@ int main(int argc, char** argv){
     Line_tan obs_line;
     Step path_solving_process = Step::Checking;
 
+    // Is simulation ?
     bool is_sim = 1;
+    nh.param("is_sim_param", is_sim);
+    // Is lidar on ?
     bool lidar_on = 0;
+    nh.param("is_ekf_param", lidar_on);
 
     bool new_goal = 0;
 
@@ -512,11 +516,6 @@ int main(int argc, char** argv){
 
     while(ros::ok()){
         // ros::Duration(0.5).sleep();
-        
-        // Is simulation ?
-        nh.param("is_sim_param", is_sim);
-        // Is lidar on ?
-        nh.param("is_ekf_param", lidar_on);
 
         // Callback
         ros::spinOnce();

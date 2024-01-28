@@ -198,7 +198,9 @@ int main(int argc, char** argv){
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
 
+    // Is lidar on?
     bool lidar_on = 0; 
+    nh.param("is_ekf_param", lidar_on);
 
     //Finite state machine
     Mode point_to_point_process = Mode::Facing;
@@ -243,8 +245,6 @@ int main(int argc, char** argv){
     goal_reached.data = false;
 
     while(ros::ok()){
-        // Is lidar on?
-        nh.param("is_ekf_param", lidar_on);
 
         //Callback
         ros::spinOnce();
