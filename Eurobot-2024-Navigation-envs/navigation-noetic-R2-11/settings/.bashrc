@@ -121,6 +121,7 @@ fi
 # export ROS_MASTER_URI=http://127.0.0.1:11311
 
 # Share Master with local computer
-export ROS_HOSTNAME="192.168.50.12"
+export ROS_HOSTNAME="192.168.50.132"
 export ROS_MASTER_URI=http://192.168.50.12:11311
 source /opt/ros/$ROS_DISTRO/setup.bash
+source /home/user/Eurobot2024-Navigation-script-ws/devel/setup.bash
