@@ -452,7 +452,7 @@ int main(int argc, char** argv){
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
     ros::Subscriber reached_sub = nh.subscribe("goal_reached",1,goal_reached);
-    ros::Publisher obs_pub_Point = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position",1000);
+    ros::Publisher obs_pub_Point = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position_rviz",1000);
 
     Line_tan robot_line;
     Line_tan goal_line;
