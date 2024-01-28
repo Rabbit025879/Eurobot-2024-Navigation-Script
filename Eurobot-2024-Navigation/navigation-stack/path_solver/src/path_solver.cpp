@@ -1,8 +1,5 @@
 #include "path_solver.h"
 
-bool is_sim = 1;
-bool lidar_on = 0;
-
 //DEBUG
 double buffer[10] = {0.0};
 bool print_once[10] = {0};
@@ -459,6 +456,9 @@ int main(int argc, char** argv){
     Line_tan obs_line;
     Step path_solving_process = Step::Checking;
 
+    bool is_sim = 1;
+    bool lidar_on = 0;
+
     bool new_goal = 0;
 
     int which_path = 0;  //how many path has been found
@@ -513,18 +513,24 @@ int main(int argc, char** argv){
     while(ros::ok()){
         // ros::Duration(0.5).sleep();
         
-        //Callback
+        // Is simulation ?
+        nh.param("is_sim_param", is_sim);
+        // Is lidar on ?
+        nh.param("is_ekf_param", lidar_on);
+
+        // Callback
         ros::spinOnce();
+        obs_pose.clear();
+        obs_pose.reserve(obs_pose_sim.size() + obs_pose_real.size());
+        for(int S=0; S<obs_pose_sim.size(); S++)    obs_pose.push_back(obs_pose_sim[S]);
+        for(int R=0; R<obs_pose_real.size(); R++)   obs_pose.push_back(obs_pose_real[R]);    
+        // for(int M=0; M<obs_pose.size(); M++)    ROS_INFO("obs_position -> (%lf, %lf)", obs_pose[M].x, obs_pose[M].y);
         if(is_sim == true){
             pose = pose_sim;
-            obs_pose.reserve(obs_pose_sim.size());
-            obs_pose = obs_pose_sim;
         }
         else{
             if(lidar_on == true)    pose = pose_ekf;
             else    pose = pose_sim;
-            obs_pose.reserve(obs_pose_real.size());
-            obs_pose = obs_pose_real;
         }
         // ROS_INFO("pose -> (%lf, %lf)", pose.x, pose.y);
         //RVIZ visualization

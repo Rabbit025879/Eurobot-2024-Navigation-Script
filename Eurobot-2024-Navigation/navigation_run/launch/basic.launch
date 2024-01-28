@@ -1,6 +1,6 @@
 <launch>
-    <arg name="is_run" default="false" />
-    <arg name="is_sim" default="true" />
+    <arg name="is_sim" default="true"/>
+    <arg name="is_ekf" default="false"/>
     
     <arg name="is_robot1" default="true" />
     <arg name="is_robot2" default="false" />
@@ -24,7 +24,7 @@
 
         <node pkg="navigation_run" type="odometry_sim" name="odometry">
             <param name="tf_prefix" value="$(arg robot_name)" />
-            <param name="cmd_cb_name" value="/Toposition" unless="$(arg is_sim)" />
+            <param name="cmd_cb_name" value="/Toposition" unless="$(arg is_sim)"/>
         </node>
 
         <include file="$(find navigation_run)/launch/move_base.launch">
@@ -42,9 +42,19 @@
         <rosparam file="$(find obstacle_simulation)/config/params.yaml" command="load"/> 
         </node> 
 
-        <node pkg="goal_pointer" type="goal_pointer" name="goal_pointer" output="screen"/>
+        <node pkg="goal_pointer" type="goal_pointer" name="goal_pointer" output="screen">
+            <!-- <param name="is_sim_param" type="bool" value="true" if="$(arg is_sim)"/>
+            <param name="is_sim_param" type="bool" value="false" unless="$(arg is_sim)"/> -->
+            <param name="is_ekf_param" type="bool" value="true" if="$(arg is_ekf)"/>
+            <param name="is_ekf_param" type="bool" value="false" unless="$(arg is_ekf)"/>
+        </node>
 
-        <node pkg="path_solver" type="path_solver" name="path_solver" output="screen"/>
+        <node pkg="path_solver" type="path_solver" name="path_solver" output="screen">
+            <param name="is_sim_param" type="bool" value="true" if="$(arg is_sim)"/>
+            <param name="is_sim_param" type="bool" value="false" unless="$(arg is_sim)"/>
+            <param name="is_ekf_param" type="bool" value="true" if="$(arg is_ekf)"/>
+            <param name="is_ekf_param" type="bool" value="false" unless="$(arg is_ekf)"/>
+        </node>
             <!-- <remap from="cmd_vel" to="/robot1/cmd_vel"/> -->
         <!-- </node> -->
     

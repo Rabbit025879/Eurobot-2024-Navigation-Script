@@ -1,7 +1,5 @@
 #include "goal_pointer.h"
 
-bool lidar_on = 0; 
-
 //DEBUG
 int DEBUG = 0;
 double buffer = 0.0;
@@ -200,6 +198,8 @@ int main(int argc, char** argv){
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
 
+    bool lidar_on = 0; 
+
     //Finite state machine
     Mode point_to_point_process = Mode::Facing;
 
@@ -243,6 +243,9 @@ int main(int argc, char** argv){
     goal_reached.data = false;
 
     while(ros::ok()){
+        // Is lidar on?
+        nh.param("is_ekf_param", lidar_on);
+
         //Callback
         ros::spinOnce();
         if(lidar_on == false){
@@ -327,7 +330,7 @@ int main(int argc, char** argv){
             diff_face_initial = diff_face;
             wait = 0;
 
-                    //Determine goal pointer    
+            //Determine goal pointer    
             if(diff_y > 0)  path_face = fabs(acos(diff_x/dis));    //Calculate path twist
             else if(diff_y < 0)   path_face = 2*PI - fabs(acos(diff_x/dis));
             else if(diff_y == 0 && diff_x > 0) path_face = 0;

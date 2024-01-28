@@ -1,9 +1,12 @@
 <launch>
-    <arg name="is_sim" default="true" />
+    <arg name="is_sim" default="true"/>
+    <arg name="is_ekf" default="false"/>
     <include file="$(find navigation_run)/launch/basic.launch">
         <arg name="is_sim" value="true" if="$(arg is_sim)"/>
         <arg name="is_sim" value="false" unless="$(arg is_sim)"/>
-        <arg name="is_robot1" value="true" />
+        <arg name="is_ekf" value="true" if="$(arg is_ekf)"/>
+        <arg name="is_ekf" value="false" unless="$(arg is_ekf)"/>
+        <arg name="is_robot1" value="true"/>
     </include>
 
     <!-- <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot" args="/robot1/cmd_ve/linear/x:y" if="$(arg is_sim)" /> -->
