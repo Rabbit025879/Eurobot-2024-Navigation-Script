@@ -1,0 +1,28 @@
+version: '3.1'
+
+services:
+  navigation-script:
+    build: .
+    image: tars3017/navigation-noetic:navigation-noetic
+    container_name: navigation-script
+    command: /bin/bash
+    tty: true
+    network_mode: host
+    ipc: host
+    privileged: true
+
+    # mount our navigation code
+    volumes:
+      # [IMPORTANT 2/3] Change the path to the navigation workspace on your host machine
+      - ${HOME}/Eurobot-2024-ws/:/home/user/Eurobot2024-Navigation-script-ws
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - $HOME/.Xauthority:/home/user/.Xauthority 
+      - /dev:/dev
+
+    working_dir:
+      /home/user/Eurobot2024-Navigation-script-ws
+
+    environment:
+      - DISPLAY=${DISPLAY}  # Set display environment variable
+      - XAUTHORITY=/home/user/.Xauthority   # Set Xauthority path
+    
