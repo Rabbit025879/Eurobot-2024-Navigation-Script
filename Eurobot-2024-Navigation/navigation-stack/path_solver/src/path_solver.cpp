@@ -249,43 +249,45 @@ double dis_line_to_point(Point line_a, Point line_b, Point point){
 }
 //Bubble sort for array
 void sort(double master[2], double slave[2]){
-    // double buffer = 0.0;
+    double buffer = 0.0;
     int tmp = 0;
     int i = 0;
     int j = 0;
     for(i = 2-1; i > 0; i--){
         for(j = 0; j <= i-1; j++){
             if(master[j] > master[j+1]){
-                // buffer = master[j];
-                // tmp = slave[j];
-                // master[j] = master[j+1];
-                // slave[j] = slave[j+1];
-                // master[j+1] = buffer;
-                // slave[j+1] = tmp;
-                std::swap(slave[j], slave[j+1]);
+                buffer = master[j];
+                tmp = slave[j];
+                master[j] = master[j+1];
+                slave[j] = slave[j+1];
+                master[j+1] = buffer;
+                slave[j+1] = tmp;
+                // std::swap(slave[j], slave[j+1]);
             }
         }
     }
 }
 //Bubble sort for vector
-void sort(std::vector<double> master, std::vector<Point> slave){
-    // double buffer = 0.0;
-    int tmp = 0;
+std::vector<Point> sort_vector(std::vector<double> master, std::vector<Point> slave){
+    double buffer = 0.0;
+    Point tmp;
     int i = 0;
     int j = 0;
-    for(i = 2-1; i > 0; i--){
+    for(i = master.size()-1; i > 0; i--){
         for(j = 0; j <= i-1; j++){
             if(master[j] > master[j+1]){
-                // buffer = master[j];
-                // tmp = slave[j];
-                // master[j] = master[j+1];
-                // slave[j] = slave[j+1];
-                // master[j+1] = buffer;
-                // slave[j+1] = tmp;
-                std::swap(slave[j], slave[j+1]);
+                buffer = master[j];
+                tmp = slave[j];
+                master[j] = master[j+1];
+                slave[j] = slave[j+1];
+                master[j+1] = buffer;
+                slave[j+1] = tmp;
+                // std::swap(master[j], master[j+1]);
+                // std::swap(slave[j], slave[j+1]);
             }
         }
     }
+    return(slave);
 }
 //Bubble sort for cost
 std::vector<std::vector<Point>> sort_path(std::vector<double> cost, std::vector<std::vector<Point>> multipath){
@@ -579,8 +581,7 @@ int main(int argc, char** argv){
             //----------------------                
             path_solving_process = Step::Checking;     
             //path simulation point
-            begin_point.x = pose.x;
-            begin_point.y = pose.y;
+            begin_point = pose;
             //path point
             path_point.push_back(pose);
             if(new_goal)    ROS_WARN("|---------------- New goal recieved ----------------|");
@@ -603,11 +604,19 @@ int main(int argc, char** argv){
                 // First, we sort the obstacles by its distance with the begin point      
                 dis_obs_to_robot.clear();              
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++)  dis_obs_to_robot.push_back(dis_point_to_point(begin_point, obs_pose[i_obs]));
-                sort(dis_obs_to_robot, obs_pose);
+                for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
+                    // ROS_WARN("begin_point -> (%lf, %lf)", begin_point.x, begin_point.y);
+                    ROS_WARN("distance(to robot) %d: %lf", i_obs, dis_obs_to_robot[i_obs]);
+                    ROS_WARN("obs[%d] -> (%lf,%lf)", i_obs, obs_pose[i_obs].x, obs_pose[i_obs].y);
+                }
+                obs_pose = sort_vector(dis_obs_to_robot, obs_pose);
                 // Then, we culculate the distance of the obstacles and robot path(straight to goal) 
                 slope_robot_to_goal = (goal.y - begin_point.y)/(goal.x - begin_point.x);
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++)  dis_obs_to_path[i_obs] = fabs(slope_robot_to_goal*obs_pose[i_obs].x-obs_pose[i_obs].y+(begin_point.y - (slope_robot_to_goal*begin_point.x)))/sqrt(pow(slope_robot_to_goal,2)+1);
-                for(i_obs=0; i_obs<obs_pose.size(); i_obs++)  ROS_WARN("distance %d: %lf", i_obs, dis_obs_to_path[i_obs]);
+                for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
+                    ROS_WARN("distance(to path) %d: %lf", i_obs, dis_obs_to_path[i_obs]);
+                    ROS_WARN("obs[%d] -> (%lf,%lf)", i_obs, obs_pose[i_obs].x, obs_pose[i_obs].y);
+                }
                 // Determine is there any obstacles on the way & which one we will first encounter(because we have sort the obstacles)
 
                 // Reset all_clear
