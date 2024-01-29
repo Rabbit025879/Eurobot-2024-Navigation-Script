@@ -218,7 +218,6 @@ int main(int argc, char** argv){
     ros::NodeHandle simple_nh("move_base_simple");
     ros::Publisher linear_vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     ros::Publisher goal_reached_pub = nh.advertise<std_msgs::Bool>("goal_reached", 1);
-    ros::Publisher goal_pointer_pub = nh.advertise<nav_msgs::Odometry>("goal_pointer", 1);  //For RVIZ visualization
     ros::Subscriber goal_sub = nh.subscribe("point", 1, getgoal);
     ros::Subscriber final_goal_sub = simple_nh.subscribe("goal", 1, getfinalgoal);
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
@@ -271,7 +270,6 @@ int main(int argc, char** argv){
     geometry_msgs::PoseStamped goal_pose;  //goal
     geometry_msgs::PoseStamped final_goal_pose;  //final goal
     nav_msgs::Odometry robot_pose;         //odom
-    nav_msgs::Odometry goal_pointer;       //goal pointer
 
     goal_reached.data = false;
 
@@ -466,15 +464,6 @@ int main(int argc, char** argv){
         linear_vel_pub.publish(cmd_vel_override);
         //Publish goal reached or not
         goal_reached_pub.publish(goal_reached);
-        //Publish goal pointer
-        goal_pointer.pose.pose.position.x = robot_pose.pose.pose.position.x;
-        goal_pointer.pose.pose.position.y = robot_pose.pose.pose.position.y;
-        goal_pointer.pose.pose.position.z = robot_pose.pose.pose.position.z;
-
-        goal_pointer.pose.pose.orientation.z = r.getZ();
-        goal_pointer.pose.pose.orientation.w = r.getW();
-
-        goal_pointer_pub.publish(goal_pointer);
 
         // ROS_ERROR("goal_pointer -> Data = %lf", double(new_goal));
 
