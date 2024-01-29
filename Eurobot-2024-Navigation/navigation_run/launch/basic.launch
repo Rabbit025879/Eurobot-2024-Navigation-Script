@@ -21,7 +21,8 @@
             <param name="frame_id" value="robot2/map" if="$(arg is_robot2)"/>
         </node>
 
-        <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 $(arg robot_name)/map $(arg robot_name)/odom 20"/>
+        <!-- is_ekf -> off -->
+        <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 $(arg robot_name)/map $(arg robot_name)/odom 20"/> -->
 
         <node pkg="navigation_run" type="odometry_sim" name="odometry" unless="$(arg is_ekf)">
             <param name="tf_prefix" value="$(arg robot_name)"/>
