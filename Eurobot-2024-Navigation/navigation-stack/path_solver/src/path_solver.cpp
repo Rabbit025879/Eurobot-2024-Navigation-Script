@@ -539,8 +539,8 @@ int main(int argc, char** argv){
 
             for (int j = 0; j < N; ++j){
                 angle = j * 2 * M_PI / N;
-                point32.x = obs_pose[i].x+(cos(angle) * (r+stdev_inflation));
-                point32.y = obs_pose[i].y+(sin(angle) * (r+stdev_inflation));
+                point32.x = obs_pose[i].x+(cos(angle) * (r));
+                point32.y = obs_pose[i].y+(sin(angle) * (r));
                 // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }

@@ -1,12 +1,12 @@
 <launch>
     <!-- Simulation -->
-    <arg name="is_sim" default="false"/>
+    <arg name="is_sim" default="true"/>
     <!-- ekf -->
     <arg name="is_ekf" default="false"/>
     <!-- Run on R2 or local ? -->
     <arg name="is_R2" default="false"/>
     <!-- Open communication -->
-    <arg name="is_robot_integral" default="true"/>
+    <arg name="is_robot_integral" default="false"/>
 
     <!-- Robot_integral -->
     <!-- <arg name="is_sim" default="false"/>
