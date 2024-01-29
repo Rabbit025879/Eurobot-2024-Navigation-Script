@@ -53,22 +53,38 @@ double vel_controller(double diff, double vel_input, float max_speed){
     double vel_output = fabs(vel_input);
 
     if(once_vel_controller == 0){
-        initial_diff = diff;
+        initial_diff = fabs(diff);
         once_vel_controller = 1;
     }
 
     if(vel_status == Velocity_Status::Acceleration){
-        vel_output += 0.00002;
-        if(vel_output >= max_speed || diff <= 0.1*initial_diff) vel_status = Velocity_Status::Max_Speed;
+        vel_output += 0.000005;
+        if(fabs(diff) > initial_diff){
+            if(vel_output >= max_speed || (PI-fabs(diff)) <= 0.3*(PI-initial_diff)) vel_status = Velocity_Status::Max_Speed;
+        }
+        else{
+            if(vel_output >= max_speed || fabs(diff) <= 0.3*initial_diff) vel_status = Velocity_Status::Max_Speed;
+        }
         // ROS_INFO("Acceleration");
     }
     else if(vel_status == Velocity_Status::Max_Speed){
-        if(diff <= 0.1*initial_diff)   vel_status = Velocity_Status::Deceleration;
+        if(fabs(diff) > initial_diff){
+            if((PI-fabs(diff)) <= 0.3*(PI-initial_diff))   vel_status = Velocity_Status::Deceleration;
+        }
+        else{
+            if(fabs(diff) <= 0.3*initial_diff)   vel_status = Velocity_Status::Deceleration;
+        }
+        
         // ROS_INFO("Max_Speed");
     }
     else if(vel_status == Velocity_Status::Deceleration){
-        if(diff*2.5 <= max_speed)   vel_output = diff * 2.5;
-        else    vel_output = max_speed;
+        if(fabs(diff) < initial_diff && fabs(diff) * 2.5 <= vel_output){
+            vel_output = fabs(diff) * 2.5;
+        }
+        else if(fabs(diff) >= initial_diff && (PI - fabs(diff)) * 2.5 <= vel_output){
+            vel_output = (PI - fabs(diff)) * 2.5;
+        }
+        else    vel_output -= 0.0000005;
         if(vel_output <= 0.02) vel_status = Velocity_Status::Approaching;
         // ROS_INFO("Deceleration");
     }
@@ -77,10 +93,18 @@ double vel_controller(double diff, double vel_input, float max_speed){
         // ROS_INFO("Approaching");
     }
 
+    if(vel_status == Velocity_Status::Acceleration) ROS_INFO("Acceleration");
+    if(vel_status == Velocity_Status::Max_Speed) ROS_INFO("Max Speed");
+    if(vel_status == Velocity_Status::Deceleration) ROS_INFO("Deceleration");
+    if(vel_status == Velocity_Status::Approaching) ROS_INFO("Approaching");
+
     // ROS_INFO("initial_diff -> %lf", initial_diff);
     // ROS_INFO("diff -> %lf", diff);
     // ROS_INFO("vel_output -> %lf", vel_output);
     // vel_output = 0.5;
+
+    //  Final_control
+    if(vel_output >= max_speed) vel_output = max_speed;
 
     return vel_output;
 }
@@ -168,12 +192,13 @@ int facing_dirction(double diff_spin, double diff_face){
 int moving_direction(double diff_face, double dis_prev, double dis_now){
     int dir_moving = 1;
     int data = 1;
+    double initial_diff = diff_face;
     //Closer or farer
     // if(dis_now <= dis_prev) data = 1;
     // else    data = -1;
     //Determine direction
-    if(fabs(diff_face) < 1) dir_moving = 1*data;
-    else if(fabs(diff_face) > PI-1) dir_moving = -1*data;
+    if(fabs(initial_diff) < PI/2) dir_moving = 1;
+    else if(fabs(initial_diff) > PI/2) dir_moving = -1;
     // ROS_INFO("diff_face -> %lf", diff_face);
     return dir_moving;
 }
@@ -454,12 +479,12 @@ int main(int argc, char** argv){
         // ROS_ERROR("goal_pointer -> Data = %lf", double(new_goal));
 
         //DEBUG
-        // if(double(point_to_point_process) != buffer) print_once = 0;  
-        // buffer = double(point_to_point_process);        
-        // if(print_once == 0){
-        //     ROS_ERROR("goal_pointer -> Data = %lf", buffer);
-        //     print_once = 1;
-        // }
+        if(double(diff_face) != buffer) print_once = 0;  
+        buffer = double(diff_face);        
+        if(print_once == 0){
+            ROS_ERROR("goal_pointer -> Data = %lf", buffer);
+            print_once = 1;
+        }
         // ROS_INFO("path_face = %lf", path_face);
         // ROS_WARN("robot_face = %lf", robot_face);
         // ROS_WARN("O.pose.pose.orientation = %lf", O.pose.pose.orientation.z);
