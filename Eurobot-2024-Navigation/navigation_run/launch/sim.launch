@@ -1,13 +1,26 @@
 <launch>
-     <!-- Simulation -->
+    <!-- Simulation -->
     <arg name="is_sim" default="true"/>
+    <!-- ekf -->
     <arg name="is_ekf" default="false"/>
+    <!-- Open communication -->
+    <arg name="is_robot_integral" default="true"/>
+    <arg name="is_robot_integral" value="false" if="is_sim"/>
+    <arg name="is_robot_integral" value="false" if="is_ekf"/>
+    <!-- Run on R2 or local ? -->
+    <arg name="is_R2" default="true"/>
     <!-- Robot_integral -->
     <!-- <arg name="is_sim" default="false"/>
     <arg name="is_ekf" default="false"/> -->
     <!-- Robot_ekf -->
     <!-- <arg name="is_sim" default="false"/>
     <arg name="is_ekf" default="true"/> -->
+
+    <!-- Open RVIZ -->
+    <include file="$(find navigation_run)/launch/open_rviz.launch" unless="is_R2"/>
+
+    <!-- Start communication -->
+    <include file="$(find navigation_run)/launch/commu.launch" if="is_robot_integral"/>
 
     <include file="$(find navigation_run)/launch/basic.launch">
         <arg name="is_sim" value="true" if="$(arg is_sim)"/>
