@@ -459,10 +459,10 @@ int main(int argc, char** argv){
     Step path_solving_process = Step::Checking;
 
     // Is simulation ?
-    bool is_sim = 1;
+    bool is_sim = 0;
     nh.param("is_sim_param", is_sim);
     // Is lidar on ?
-    bool lidar_on = 0;
+    bool lidar_on = 1;
     nh.param("is_ekf_param", lidar_on);
 
     bool new_goal = 0;

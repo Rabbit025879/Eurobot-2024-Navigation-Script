@@ -224,7 +224,7 @@ int main(int argc, char** argv){
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
 
     // Is lidar on?
-    bool lidar_on = 0; 
+    bool lidar_on = 1; 
     nh.param("is_ekf_param", lidar_on);
 
     //Finite state machine
