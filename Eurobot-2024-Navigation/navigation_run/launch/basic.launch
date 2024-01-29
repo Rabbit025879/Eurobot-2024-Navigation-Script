@@ -49,6 +49,10 @@
             <param name="is_sim_param" type="bool" value="false" unless="$(arg is_sim)"/> -->
             <param name="is_ekf_param" type="bool" value="true" if="$(arg is_ekf)"/>
             <param name="is_ekf_param" type="bool" value="false" unless="$(arg is_ekf)"/>
+
+            <!-- Max Velocity -->
+            <!-- <param name="max_speed_linear" type="double" value="1.0"/> 
+            <param name="max_speed_angular" type="double" value="0.5"/>  -->
         </node>
 
         <node pkg="path_solver" type="path_solver" name="path_solver" output="screen">
