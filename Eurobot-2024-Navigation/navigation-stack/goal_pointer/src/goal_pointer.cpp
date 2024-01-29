@@ -93,10 +93,10 @@ double vel_controller(double diff, double vel_input, float max_speed){
         // ROS_INFO("Approaching");
     }
 
-    if(vel_status == Velocity_Status::Acceleration) ROS_INFO("Acceleration");
-    if(vel_status == Velocity_Status::Max_Speed) ROS_INFO("Max Speed");
-    if(vel_status == Velocity_Status::Deceleration) ROS_INFO("Deceleration");
-    if(vel_status == Velocity_Status::Approaching) ROS_INFO("Approaching");
+    // if(vel_status == Velocity_Status::Acceleration) ROS_INFO("Acceleration");
+    // if(vel_status == Velocity_Status::Max_Speed) ROS_INFO("Max Speed");
+    // if(vel_status == Velocity_Status::Deceleration) ROS_INFO("Deceleration");
+    // if(vel_status == Velocity_Status::Approaching) ROS_INFO("Approaching");
 
     // ROS_INFO("initial_diff -> %lf", initial_diff);
     // ROS_INFO("diff -> %lf", diff);
@@ -479,12 +479,12 @@ int main(int argc, char** argv){
         // ROS_ERROR("goal_pointer -> Data = %lf", double(new_goal));
 
         //DEBUG
-        if(double(diff_face) != buffer) print_once = 0;  
-        buffer = double(diff_face);        
-        if(print_once == 0){
-            ROS_ERROR("goal_pointer -> Data = %lf", buffer);
-            print_once = 1;
-        }
+        // if(double(diff_face) != buffer) print_once = 0;  
+        // buffer = double(diff_face);        
+        // if(print_once == 0){
+        //     ROS_ERROR("goal_pointer -> Data = %lf", buffer);
+        //     print_once = 1;
+        // }
         // ROS_INFO("path_face = %lf", path_face);
         // ROS_WARN("robot_face = %lf", robot_face);
         // ROS_WARN("O.pose.pose.orientation = %lf", O.pose.pose.orientation.z);
