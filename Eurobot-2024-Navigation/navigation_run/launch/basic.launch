@@ -1,6 +1,7 @@
 <launch>
     <arg name="is_sim" default="true"/>
     <arg name="is_ekf" default="false"/>
+    <arg name="is_robot_integral" default="false"/>
     
     <arg name="is_robot1" default="true" />
     <arg name="is_robot2" default="false" />
@@ -13,7 +14,7 @@
     <arg name="robot_name" default="rival2" if="$(arg is_rival2)"/>
 
     <remap from="/robot1/Toposition" to="/Toposition" unless="$(arg is_sim)"/>
-    <remap from="/robot1/cmd_vel" to="/cmd_vel" unless="$(arg is_sim)"/>
+    <remap from="/robot1/cmd_vel" to="/cmd_vel" if="$(arg is_robot_integral)"/>
     <group ns="$(arg robot_name)">
         <node pkg="map_server" type="map_server" name="map_server" args="$(find navigation_run)/map/basic_map.yaml">
             <param name="frame_id" value="robot1/map" if="$(arg is_robot1)"/>
@@ -22,9 +23,10 @@
 
         <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 $(arg robot_name)/map $(arg robot_name)/odom 20"/>
 
-        <node pkg="navigation_run" type="odometry_sim" name="odometry">
-            <param name="tf_prefix" value="$(arg robot_name)" />
-            <param name="cmd_cb_name" value="/Toposition" unless="$(arg is_sim)"/>
+        <node pkg="navigation_run" type="odometry_sim" name="odometry" unless="$(arg is_ekf)">
+            <param name="tf_prefix" value="$(arg robot_name)"/>
+            <param name="cmd_cb_name" value="cmd_vel" if="$(arg is_sim)"/>
+            <param name="cmd_cb_name" value="/Toposition" unless="$(arg is_sim)"/>          
         </node>
 
         <include file="$(find navigation_run)/launch/move_base.launch">
