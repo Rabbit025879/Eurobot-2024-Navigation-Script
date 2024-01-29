@@ -22,7 +22,7 @@
         </node>
 
         <!-- is_ekf -> off -->
-        <!-- <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 $(arg robot_name)/map $(arg robot_name)/odom 20"/> -->
+        <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 $(arg robot_name)/map $(arg robot_name)/odom 20" unless="$(arg is_ekf)"/>
 
         <node pkg="navigation_run" type="odometry_sim" name="odometry" unless="$(arg is_ekf)">
             <param name="tf_prefix" value="$(arg robot_name)"/>
