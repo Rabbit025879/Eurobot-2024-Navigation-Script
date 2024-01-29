@@ -229,11 +229,11 @@ int main(int argc, char** argv){
     //cmd_vel
     double base_vel_x = 0.0;
     double base_vel_spin = 0.0;
-    double max_speed_linear = 0.4;
-    double max_speed_angular = 1.0;
+    // double max_speed_linear = 0.4;
+    // double max_speed_angular = 1.0;
 
-    nh.getParam("max_speed_linear", max_speed_linear);
-    nh.getParam("max_speed_angular", max_speed_angular);
+    // nh.getParam("max_speed_linear", max_speed_linear);
+    // nh.getParam("max_speed_angular", max_speed_angular);
 
     //delay
     int delay = 0;

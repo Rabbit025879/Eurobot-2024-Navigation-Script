@@ -12,6 +12,8 @@
 #include <nav_msgs/Odometry.h>
 
 #define PI 3.14159
+#define max_speed_linear 0.4
+#define max_speed_angular 1.0
 
 enum class Mode{
     Facing = 0,
