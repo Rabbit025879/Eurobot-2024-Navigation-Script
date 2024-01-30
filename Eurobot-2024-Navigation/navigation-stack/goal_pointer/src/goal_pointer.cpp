@@ -216,17 +216,20 @@ int main(int argc, char** argv){
     // ros::Rate freq(20);
     ros::NodeHandle nh;
     ros::NodeHandle simple_nh("move_base_simple");
+
+    ros::Subscriber final_goal_sub = simple_nh.subscribe("goal", 1, getfinalgoal);
+
     ros::Publisher linear_vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     ros::Publisher goal_reached_pub = nh.advertise<std_msgs::Bool>("goal_reached", 1);
+    
     ros::Subscriber goal_sub = nh.subscribe("point", 1, getgoal);
-    ros::Subscriber final_goal_sub = simple_nh.subscribe("goal", 1, getfinalgoal);
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
-
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Is lidar on?
     bool lidar_on = 1; 
-    nh.param("is_ekf_param", lidar_on);
-
+    // nh.param("is_ekf_param", lidar_on);
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     //Finite state machine
     Mode point_to_point_process = Mode::Facing;
 

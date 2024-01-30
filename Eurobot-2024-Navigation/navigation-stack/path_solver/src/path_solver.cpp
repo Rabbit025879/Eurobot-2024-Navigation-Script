@@ -444,27 +444,35 @@ int main(int argc, char** argv){
     ros::init(argc, argv, "path_solver");
     ros::NodeHandle nh;
     ros::NodeHandle simple_nh("move_base_simple");
+
+    ros::Subscriber goal_sub = simple_nh.subscribe("goal", 1, getgoal);
+    
     ros::Publisher point_pub = nh.advertise<geometry_msgs::PoseStamped>("point",1);
+    ros::Publisher obs_pub_Point = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position_rviz",1000);
+
     ros::Subscriber obs_sub_sim = nh.subscribe("obstacle_position_array", 1000, getobs_sim);
     ros::Subscriber obs_sub_real = nh.subscribe("obstacle_array", 1000, getobs_real);
-    ros::Subscriber goal_sub = simple_nh.subscribe("goal", 1, getgoal);
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
     ros::Subscriber reached_sub = nh.subscribe("goal_reached",1,goal_reached);
-    ros::Publisher obs_pub_Point = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position_rviz",1000);
+    ros::Publisher obs_pub_Rviz = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position_rviz",1000);
 
     Line_tan robot_line;
     Line_tan goal_line;
     Line_tan obs_line;
     Step path_solving_process = Step::Checking;
-
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Is simulation ?
     bool is_sim = 0;
-    nh.param("is_sim_param", is_sim);
+    // nh.param("is_sim_param", is_sim);
+    if(is_sim==1)   ROS_WARN("Is sim");
+    else    ROS_WARN("Is Machine");
     // Is lidar on ?
     bool lidar_on = 1;
-    nh.param("is_ekf_param", lidar_on);
-
+    // nh.param("is_ekf_param", lidar_on);
+    if(lidar_on==1) ROS_WARN("Lidar on -> ekf");
+    else    ROS_WARN("Lidar off -> odom");
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     bool new_goal = 0;
 
     int which_path = 0;  //how many path has been found
