@@ -11,7 +11,7 @@ Panels:
         - /Rival1_Odom1/Shape1
         - /Rival2_Odom1/Shape1
       Splitter Ratio: 0.4740740656852722
-    Tree Height: 365
+    Tree Height: 698
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -234,7 +234,7 @@ Visualization Manager:
         Shaft Length: 0.20000000298023224
         Shaft Radius: 0.05000000074505806
         Value: Arrow
-      Topic: /robot1/ekf_pose_in_odom
+      Topic: /robot1/odom
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.10000000149011612
@@ -488,5 +488,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 960
-  X: 0
-  Y: 27
+  X: 509
+  Y: 0

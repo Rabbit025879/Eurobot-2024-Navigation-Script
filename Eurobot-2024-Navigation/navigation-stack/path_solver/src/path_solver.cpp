@@ -463,12 +463,12 @@ int main(int argc, char** argv){
     Step path_solving_process = Step::Checking;
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Is simulation ?
-    bool is_sim = 0;
+    bool is_sim = 1;
     // nh.param("is_sim_param", is_sim);
     if(is_sim==1)   ROS_WARN("Is sim");
     else    ROS_WARN("Is Machine");
     // Is lidar on ?
-    bool lidar_on = 1;
+    bool lidar_on = 0;
     // nh.param("is_ekf_param", lidar_on);
     if(lidar_on==1) ROS_WARN("Lidar on -> ekf");
     else    ROS_WARN("Lidar off -> odom");

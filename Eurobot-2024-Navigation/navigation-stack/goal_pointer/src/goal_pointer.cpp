@@ -15,6 +15,7 @@ double pose_sim_x = 0.0;
 double pose_sim_y = 0.0;
 double pose_ekf_x = 0.0;
 double pose_ekf_y = 0.0;
+
 double pose_x = 0.0;
 double pose_y = 0.0;
 //Convert
@@ -227,16 +228,23 @@ int main(int argc, char** argv){
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Is lidar on?
-    bool lidar_on = 1; 
+    bool lidar_on = 0; 
     // nh.param("is_ekf_param", lidar_on);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //Finite state machine
+    // Finite state machine
     Mode point_to_point_process = Mode::Facing;
 
-    //New goal?
+    // New goal?
     bool new_goal = 0;
     double goal_x_ed = 0.0;
     double goal_y_ed = 0.0;
+
+    // Reset the process
+    bool reset_process = false;
+    double dis_robot_to_path = 0.0;
+    double slope_robot_goal = 0.0;
+    double initial_pose_x = 0.0;
+    double initial_pose_y = 0.0;
 
     //States
     double dis = 0.0;
@@ -352,14 +360,33 @@ int main(int argc, char** argv){
         if((goal_x != final_goal_x) && (goal_y != final_goal_y))    diff_spin = 0;
 
         //--------------------------------------------------------
-        //Point to point
+        // Point to point
         //-------------------------------------------------------- 
+
+// ----------------------------------------------------------------Unfinished Change------------------------------------------------------------------------------------
+        // If robot is too far away from the path
+        slope_robot_goal = (goal_y - initial_pose_y)/(goal_x - initial_pose_x);
+        dis_robot_to_path = fabs(slope_robot_goal*pose_x-pose_y+(initial_pose_y - (slope_robot_goal*initial_pose_x)))/sqrt(pow(slope_robot_goal,2)+1);
+        if(dis_robot_to_path >= 0.05){
+            vel_status == Velocity_Status::Deceleration;
+            if(base_vel_x <= 0.05){
+                base_vel_x = 0;
+                reset_process = true;
+            }
+        }
+        else    reset_process = false;
+
+        ROS_INFO("Path_offset -> %lf", dis_robot_to_path);
+        // if(reset_process)  ROS_INFO("Reset");
+
         //If received a new goal
-        if(goal_x != goal_x_ed || goal_y != goal_y_ed){
+        if(goal_x != goal_x_ed || goal_y != goal_y_ed || reset_process == true){
             new_goal = 1;
             point_to_point_process = Mode::Facing;
             diff_spin_initial = diff_spin;
             diff_face_initial = diff_face;
+            initial_pose_x = pose_x;
+            initial_pose_y = pose_y;
             wait = 0;
 
             //Determine goal pointer    
@@ -378,6 +405,7 @@ int main(int argc, char** argv){
 
         if(new_goal){
             wait++;
+            ROS_INFO("initial_pose -> (%lf, %lf)", initial_pose_x, initial_pose_y);
             if(wait >= 22){
                 //First, we face toward our goal
                 if(point_to_point_process == Mode::Facing){
