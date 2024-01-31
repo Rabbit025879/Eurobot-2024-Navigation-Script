@@ -376,12 +376,13 @@ int main(int argc, char** argv){
         }
         else    reset_process = false;
 
-        ROS_INFO("Path_offset -> %lf", dis_robot_to_path);
+        // ROS_INFO("Path_offset -> %lf", dis_robot_to_path);
         // if(reset_process)  ROS_INFO("Reset");
 
         //If received a new goal
         if(goal_x != goal_x_ed || goal_y != goal_y_ed || reset_process == true){
             new_goal = 1;
+            reset_process = false;
             point_to_point_process = Mode::Facing;
             diff_spin_initial = diff_spin;
             diff_face_initial = diff_face;
@@ -405,7 +406,7 @@ int main(int argc, char** argv){
 
         if(new_goal){
             wait++;
-            ROS_INFO("initial_pose -> (%lf, %lf)", initial_pose_x, initial_pose_y);
+            // ROS_INFO("initial_pose -> (%lf, %lf)", initial_pose_x, initial_pose_y);
             if(wait >= 22){
                 //First, we face toward our goal
                 if(point_to_point_process == Mode::Facing){

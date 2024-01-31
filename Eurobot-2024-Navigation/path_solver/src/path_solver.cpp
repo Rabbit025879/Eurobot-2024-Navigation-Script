@@ -4,8 +4,9 @@
 double buffer[10] = {0.0};
 bool print_once[10] = {0};
 //Obstacles position
-std::vector<Point>  obs_pose_sim;
-std::vector<Point>  obs_pose_real;
+std::vector<Point>  obs_pose_static;
+std::vector<Point>  obs_pose_pot;
+Point  obs_pose_rival;
 std::vector<Point>  obs_pose;
 //Goal reached?
 bool is_goal_reached = 0;
@@ -387,26 +388,31 @@ Point point_select(Point a, Point b, Point c, Point d, int rank){
 
     return(Point);
 }
-//Get target goal for simulation
-void getobs_sim(const geometry_msgs::PoseArray& obs_detector_sim){
+//Get obstacle position for simulation
+void getobs_static(const geometry_msgs::PoseArray& obs_detector_static){
     int i = 0;
-    obs_pose_sim.clear();
-    obs_pose_sim.reserve(obs_detector_sim.poses.size());
-    for(i=0; i<obs_detector_sim.poses.size(); i++){
-        obs_pose_sim.push_back(Point_convert(obs_detector_sim.poses[i].position.x, obs_detector_sim.poses[i].position.y));
+    obs_pose_static.clear();
+    obs_pose_static.reserve(obs_detector_static.poses.size());
+    for(i=0; i<obs_detector_static.poses.size(); i++){
+        obs_pose_static.push_back(Point_convert(obs_detector_static.poses[i].position.x, obs_detector_static.poses[i].position.y));
         // ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
-//Get target goal for real
-void getobs_real(const obstacle_detector::Obstacles& obs_detector_real){
+//Get static obstacle position for real
+void getobs_pot(const obstacle_detector::Obstacles& obs_detector_pot){
     int i = 0;
-    obs_pose_real.clear();
-    obs_pose_real.reserve(obs_detector_real.circles.size());
-    for(i=0; i<obs_detector_real.circles.size(); i++){
-        obs_pose_real.push_back(Point_convert(obs_detector_real.circles[i].center.x, obs_detector_real.circles[i].center.y));
+    obs_pose_pot.clear();
+    obs_pose_pot.reserve(obs_detector_pot.circles.size());
+    for(i=0; i<obs_detector_pot.circles.size(); i++){
+        obs_pose_pot.push_back(Point_convert(obs_detector_pot.circles[i].center.x, obs_detector_pot.circles[i].center.y));
         // ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
+//Get rival obstacle position for real
+// void getobs_rival(const obstacle_detector::Obstacles& obs_detector_rival){
+//     obs_pose_rival.x = obs_detector_rival;
+//     obs_pose_rival.y = obs_detector_rival;
+// }
 //Get target goal
 void getgoal(const geometry_msgs::PoseStamped& goal_pose){
     goal.x = goal_pose.pose.position.x;
@@ -450,8 +456,9 @@ int main(int argc, char** argv){
     ros::Publisher point_pub = nh.advertise<geometry_msgs::PoseStamped>("point",1);
     ros::Publisher obs_pub_Point = nh.advertise<geometry_msgs::PolygonStamped>("obstacle_position_rviz",1000);
 
-    ros::Subscriber obs_sub_sim = nh.subscribe("obstacle_position_array", 1000, getobs_sim);
-    ros::Subscriber obs_sub_real = nh.subscribe("obstacle_array", 1000, getobs_real);
+    ros::Subscriber obs_sub_static = nh.subscribe("obstacle_position_array", 1000, getobs_static);
+    ros::Subscriber obs_sub_pot = nh.subscribe("obstacle_array", 1000, getobs_pot);
+    // ros::Subscriber obs_sub_rival = nh.subscribe("obstacle_array", 1000, getobs_rival);
     ros::Subscriber pose_sim_sub = nh.subscribe("odom",1,getodom_sim);
     ros::Subscriber pose_ekf_sub = nh.subscribe("ekf_pose",1,getodom_ekf);
     ros::Subscriber reached_sub = nh.subscribe("goal_reached",1,goal_reached);
@@ -474,6 +481,7 @@ int main(int argc, char** argv){
     else    ROS_WARN("Lidar off -> odom");
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     bool new_goal = 0;
+    bool replan = false;
 
     int which_path = 0;  //how many path has been found
     std::vector<int> binary = {0};
@@ -491,6 +499,7 @@ int main(int argc, char** argv){
     int i_obs = 0;
     int which_obs = 0;
     int obs_enc = 0;
+    Rival_state rival_state = Rival_state::Static;
 
     Point goal_ed;
 
@@ -529,11 +538,20 @@ int main(int argc, char** argv){
 
         // Callback
         ros::spinOnce();
+
+        // Determine whether is the rival moving
+
+
+        // Push in obstacles
         obs_pose.clear();
-        obs_pose.reserve(obs_pose_sim.size() + obs_pose_real.size());
-        for(int S=0; S<obs_pose_sim.size(); S++)    obs_pose.push_back(obs_pose_sim[S]);
-        for(int R=0; R<obs_pose_real.size(); R++)   obs_pose.push_back(obs_pose_real[R]);    
+        // if(rival_state == Rival_state::Static)    obs_pose.reserve(obs_pose_static.size() + obs_pose_pot.size() + 1);
+        // else    obs_pose.reserve(obs_pose_static.size() + obs_pose_pot.size());
+        obs_pose.reserve(obs_pose_static.size() + obs_pose_pot.size());
+        for(int S=0; S<obs_pose_static.size(); S++)    obs_pose.push_back(obs_pose_static[S]);
+        for(int P=0; P<obs_pose_pot.size(); P++)   obs_pose.push_back(obs_pose_pot[P]);    
+        // if(rival_state == Rival_state::Static)  obs_pose.push_back(obs_pose_rival);
         // for(int M=0; M<obs_pose.size(); M++)    ROS_INFO("obs_position -> (%lf, %lf)", obs_pose[M].x, obs_pose[M].y);
+        
         if(is_sim == true){
             pose = pose_sim;
         }
@@ -569,7 +587,7 @@ int main(int argc, char** argv){
         }
         
         //Determination of new goal
-        if(goal.x != goal_ed.x && goal.y != goal_ed.y){
+        if((goal.x != goal_ed.x && goal.y != goal_ed.y) || replan == true){
  
             // Is the goal valid ?
             if(goal.x > 3-r || goal.x < 0+r || goal.y > 2-r || goal.y < 0+r){
@@ -828,6 +846,7 @@ int main(int argc, char** argv){
             if(path_solving_process == Step::Publishing){
                 // ROS_INFO("is goal reached -> %d", is_goal_reached);
                 if(is_goal_reached == false){
+                    replan = true;
                     if(once == false){
                         i_point++;    
                         once = true;
@@ -853,6 +872,7 @@ int main(int argc, char** argv){
                     once = false;
                     i_point = 0;
                     new_goal = 0;
+                    replan = false;
                     final_path.clear();
                     ROS_FATAL("Goal Reached !!");
                 }    
@@ -874,6 +894,7 @@ int main(int argc, char** argv){
 
         goal_ed.x = goal.x;
         goal_ed.y = goal.y;
+        // ros::Duration(0.3).sleep();/
     }
 }
 

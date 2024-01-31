@@ -1,0 +1,32 @@
+frame: "map"
+# robot_type: "holonomic"
+robot_type: "differential"
+control_frequency: 20
+xy_tolerance: 0.03
+theta_tolerance: 0.03
+lookahead_d: 0.3
+can_reverse_drive: 1
+replan_threshold: 3
+# pose_type: 0
+replan_frequency_divider: 2
+
+# linear parameters
+linear_max_vel: 0.6
+linear_acceleration: 0.4
+linear_kp: 2.5
+linear_brake_distance: 0.3
+dacc_vel: 0.3
+linear_margin: 0.00
+
+# angular parameters
+# angular_max_vel: 0.7
+angular_max_vel: 1.5
+angular_acceleration: 0.6
+angular_kp: 0.3
+angular_brake_distance: 2.0
+angular_margin: 0.00
+
+# spin and dock param
+spin_kp: 5.5
+dock_kp: 1.2
+spin_and_dock_start_dist: 0.03

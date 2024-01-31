@@ -18,7 +18,7 @@
 #include <algorithm>
 
 #define PI 3.14159
-#define r 0.2 //0.25
+#define r 0.15 //0.25
 #define stdev_inflation 0.17 //0.08
 #define nodes_cost_param 1.2
 
@@ -27,6 +27,11 @@ enum class Step{
     Planning,
     Selecting,
     Publishing
+};
+
+enum class Rival_state{
+    Static = 0,
+    Dynamic
 };
 
 struct Point{

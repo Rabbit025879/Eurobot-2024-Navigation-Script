@@ -1,0 +1,10 @@
+<launch>
+    <arg name="num" default="" />
+    <arg name="is_sim" default="" />
+    <node pkg="path_executor" type="pathExecutor" name="pathExecutor" output="screen">
+        <rosparam file="$(find path_executor)/config/pathExecutor_robot1.yaml" command="load" />
+        <param name="frame" value="robot$(arg num)/map" />
+        <param name="pose_type" value="0" if="$(arg is_sim)" />
+        <param name="pose_type" value="1" unless="$(arg is_sim)" />
+    </node>
+</launch>
