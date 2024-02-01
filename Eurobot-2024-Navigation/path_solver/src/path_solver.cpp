@@ -447,11 +447,18 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                 ROS_INFO("<---------- Publishing ---------->");
                 Final_path_responce.clear();
                 Final_path_responce.reserve(final_path.size());
-                for(int p=0; p<final_path.size(); p++){
+                for(int p=0; p<final_path.size()-1; p++){
                     Final_path_buffer.pose.position.x = final_path[p].x; 
                     Final_path_buffer.pose.position.y = final_path[p].y; 
-                    ROS_INFO("Path -> (%lf, %lf)", final_path[p].x, final_path[p].y);
+                    ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
                     Final_path_responce.push_back(Final_path_buffer);
+                    // Divide path
+                    // for(double c=0.0; c<=50; c++){
+                    //     Final_path_buffer.pose.position.x = final_path[p].x+((final_path[p+1].x-final_path[p].x)*(c/50)); 
+                    //     Final_path_buffer.pose.position.y = final_path[p].y+((final_path[p+1].y-final_path[p].y)*(c/50)); 
+                    //     ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
+                    //     Final_path_responce.push_back(Final_path_buffer);
+                    // }
                 }
                 path_solving_process = Step::Finishing;
             }        

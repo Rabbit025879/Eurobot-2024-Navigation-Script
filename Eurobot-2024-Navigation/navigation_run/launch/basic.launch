@@ -42,12 +42,16 @@
         <!-- </node> -->
 
         <node name="obs_position" pkg="obstacle_simulation" type="obs_position" output="screen">
-        <rosparam file="$(find obstacle_simulation)/config/params.yaml" command="load"/> 
+            <rosparam file="$(find obstacle_simulation)/config/params.yaml" command="load"/> 
         </node> 
 
-        <node pkg="path_executor" type="pathExecutor" name="path_executor" output="screen">
+        <include file="$(find path_executor)/launch/pathExecutor.launch">
+            <arg name="is_sim" value="true" if="$(arg is_sim)"/>
+            <arg name="is_sim" value="false" unless="$(arg is_sim)"/>   
+        </include>
+        <!-- <node pkg="path_executor" type="pathExecutor" name="path_executor" output="screen">
             <rosparam file="$(find path_executor)/config/pathExecutor_robot1.yaml" command="load" />
-        </node>
+        </node> -->
 
         <node pkg="path_solver" type="path_solver" name="path_solver" output="screen"/>
             <!-- <remap from="cmd_vel" to="/robot1/cmd_vel"/> -->
