@@ -1,10 +1,10 @@
 #ifndef PATH_SOLVER_H
 #define PATH_SOLVER_H
-
+// ROS
 #include "ros/ros.h"
-//tf2
+// tf2
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-//messages
+// messages
 #include "std_msgs/Bool.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/PoseArray.h"
@@ -13,25 +13,24 @@
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "nav_msgs/Odometry.h"
 #include "obstacle_detector/Obstacles.h"
-//std
+// Service
+#include <nav_msgs/GetPlan.h>
+// std
 #include <vector>
 #include <algorithm>
 
 #define PI 3.14159
 #define r 0.15 //0.25
-#define stdev_inflation 0.17 //0.08
+#define obstacle_size 0.15 //0.25
+#define stdev_inflation 0.1 //0.08
 #define nodes_cost_param 1.2
 
 enum class Step{
     Checking = 1,
     Planning,
     Selecting,
-    Publishing
-};
-
-enum class Rival_state{
-    Static = 0,
-    Dynamic
+    Publishing,
+    Finishing
 };
 
 struct Point{
@@ -59,7 +58,7 @@ class Line_tan{
         // 1 line for t & 4 lines for u
         Point line_intersection_14(Line_tan t, Line_tan u, int n, Point comfirm_point);
         // 1 line for t & 2 lines for u
-        Point line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point);
+        Point line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point, Point goal);
     private:
         //Input parameters
         Point point_on_line;

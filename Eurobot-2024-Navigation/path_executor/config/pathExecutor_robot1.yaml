@@ -1,4 +1,4 @@
-frame: "map"
+frame: "robot1/map"
 # robot_type: "holonomic"
 robot_type: "differential"
 control_frequency: 20

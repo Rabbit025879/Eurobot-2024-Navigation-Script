@@ -181,10 +181,10 @@ void GlobalPlanner::clearRobotCell(const geometry_msgs::PoseStamped& global_pose
 }
 
 bool GlobalPlanner::makePlanService(nav_msgs::GetPlan::Request& req, nav_msgs::GetPlan::Response& resp) {
-    makePlan(req.start, req.goal, resp.plan.poses);
+    // makePlan(req.start, req.goal, resp.plan.poses);
 
-    resp.plan.header.stamp = ros::Time::now();
-    resp.plan.header.frame_id = frame_id_;
+    // resp.plan.header.stamp = ros::Time::now();
+    // resp.plan.header.frame_id = frame_id_;
 
     return true;
 }

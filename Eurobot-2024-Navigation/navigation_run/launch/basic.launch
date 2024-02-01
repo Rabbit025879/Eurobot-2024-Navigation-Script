@@ -45,23 +45,11 @@
         <rosparam file="$(find obstacle_simulation)/config/params.yaml" command="load"/> 
         </node> 
 
-        <node pkg="goal_pointer" type="goal_pointer" name="goal_pointer" output="screen">
-            <!-- <param name="is_sim_param" type="bool" value="true" if="$(arg is_sim)"/>
-            <param name="is_sim_param" type="bool" value="false" unless="$(arg is_sim)"/> -->
-            <param name="is_ekf_param" type="bool" value="true" if="$(arg is_ekf)"/>
-            <param name="is_ekf_param" type="bool" value="false" unless="$(arg is_ekf)"/>
-
-            <!-- Max Velocity -->
-            <!-- <param name="max_speed_linear" type="double" value="1.0"/> 
-            <param name="max_speed_angular" type="double" value="0.5"/>  -->
+        <node pkg="path_executor" type="pathExecutor" name="path_executor" output="screen">
+            <rosparam file="$(find path_executor)/config/pathExecutor_robot1.yaml" command="load" />
         </node>
 
-        <node pkg="path_solver" type="path_solver" name="path_solver" output="screen">
-            <param name="is_sim_param" type="bool" value="true" if="$(arg is_sim)"/>
-            <param name="is_sim_param" type="bool" value="false" unless="$(arg is_sim)"/>
-            <param name="is_ekf_param" type="bool" value="true" if="$(arg is_ekf)"/>
-            <param name="is_ekf_param" type="bool" value="false" unless="$(arg is_ekf)"/>
-        </node>
+        <node pkg="path_solver" type="path_solver" name="path_solver" output="screen"/>
             <!-- <remap from="cmd_vel" to="/robot1/cmd_vel"/> -->
         <!-- </node> -->
     

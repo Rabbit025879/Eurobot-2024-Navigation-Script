@@ -238,7 +238,7 @@ bool PathExecutor::Get_Global_Path(RobotState cur_pos, RobotState goal_pos) {
     goal.pose.orientation.w = q.w();
 
     // ros::ServiceClient client = nh_.serviceClient<nav_msgs::GetPlan>("move_base/PathPlanner/make_plan");
-    ros::ServiceClient client = nh_.serviceClient<nav_msgs::GetPlan>("move_base/GlobalPlanner/make_plan");
+    ros::ServiceClient client = nh_.serviceClient<nav_msgs::GetPlan>("/make_plan");
     nav_msgs::GetPlan srv;
     srv.request.start = cur;
     srv.request.goal = goal;
