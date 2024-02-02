@@ -2,17 +2,18 @@
 #include "path_solver.h" 
 
 //----------------------------------------------- Global Variables -----------------------------------------------
-// DEBUG
-double buffer[10] = {0.0};  // Buffer of the variables we want to print
-bool print_once[10] = {0};  // Print once if the values are the same
 // Obstacles position
 std::vector<Point>  obs_pose_static;    // Static obstacles from obstacle simulation -> map
 std::vector<Point>  obs_pose_pot;       // Static obstacles from sensors -> pot & plant
 Point  obs_pose_rival;                  // Dynamic obstacles from sensors -> rival
+// Replan counter
+int cnt_replan = 0;
+// Begin point
+Point begin_point;   // Begin point of the simulation
 
 //----------------------------------------------- Custom Functions -----------------------------------------------
 // Path Solving Process
-std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point goal, std::vector<Point> obs_pose);
+std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, Point pose, Point goal, std::vector<Point> obs_pose);
 // Merge all types of obstacles
 std::vector<Point> Merge_obstacles();
 // Debug function
@@ -26,7 +27,7 @@ Point Point_convert(double x, double y);
 // Bubble sort for array
 void sort(double master[2], double slave[2]);
 // Bubble sort for vector
-std::vector<Point> sort_vector(std::vector<double> master, std::vector<Point> slave);
+std::vector<Point> sort_obs_with_robot_dis(std::vector<double> master, std::vector<Point> slave);
 //Bubble sort for cost
 std::vector<std::vector<Point>> sort_path(std::vector<double> cost, std::vector<std::vector<Point>> multipath);
 // Path selection
@@ -64,23 +65,36 @@ void getobs_pot(const obstacle_detector::Obstacles& obs_detector_pot){
 // GetPlan Server
 bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Response &responce){
     // Target goal
-    Point goal;     // Target goal from service request
+    Point goal;          // Target goal from service request
     // Robot pose   
-    Point pose;     // Start point from service request
+    Point pose;          // Start point from service request
     
     ROS_WARN("|------------------------------- Make plan ----------------------------|");
-    
+
     // Request
     goal.x = request.goal.pose.position.x;
     goal.y = request.goal.pose.position.y;
     pose.x = request.start.pose.position.x;
     pose.y = request.start.pose.position.y;
 
+    // Replan count
+    cnt_replan++;
+    if(cnt_replan % 20 == 1){
+        begin_point.x = pose.x;
+        begin_point.y = pose.y;
+    }
+    ROS_FATAL("begin_point -> (%lf, %lf)", begin_point.x, begin_point.y);
+
     // Responce
     responce.plan.header.frame_id = "/robot1/map";
     responce.plan.header.stamp = ros::Time::now();
-    responce.plan.poses = Path_Solving_Process(pose, goal, Merge_obstacles());
+    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
 
+    // Prevent path roll back
+    for(int i_path=1; i_path<responce.plan.poses.size(); i_path++){
+        if((fabs(responce.plan.poses[i_path].pose.position.x - pose.x) <= 0.3) && (fabs(responce.plan.poses[i_path].pose.position.y - pose.y) <= 0.3))    cnt_replan = 0;
+    }
+    
     return true;
 }
 //------------------------------------------------- Main Function ------------------------------------------------
@@ -107,16 +121,32 @@ int main(int argc, char** argv){
     std::vector <geometry_msgs::Point32>  rviz_obs;     // Vector of polygon point to publish 
     std::vector <Point> total_obs;                      // Obstacle buffer to get Merge_obstacles
     geometry_msgs::PolygonStamped obs_point;            // Obstacle output for rviz visualization
+    // Radius
+    double obstacle_size = 0.08;
+    double normal_inflation = 0.03;
+    double safety_inflation = 0.1;
+    double clear_radius = obstacle_size+robot_size+normal_inflation;
+    double avoid_radius = obstacle_size+robot_size+safety_inflation;
 
 //----------------------------------------------------- Loop ---------------------------------------------------
+    // Rate
+    // ros::Rate rate_1000000hz(1000000);
+
     while(ros::ok()){
         //RVIZ visualization for obstacles
         total_obs = Merge_obstacles();
         for(int i=0; i<total_obs.size(); i++){
             for (int j = 0; j < N; ++j){
                 angle = j * 2 * M_PI / N;
-                point32.x = total_obs[i].x+(cos(angle) * (r+stdev_inflation));
-                point32.y = total_obs[i].y+(sin(angle) * (r+stdev_inflation));
+                point32.x = total_obs[i].x+(cos(angle) * obstacle_size);
+                point32.y = total_obs[i].y+(sin(angle) * obstacle_size);
+                // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
+                rviz_obs.push_back(point32);
+            }
+            for (int j = 0; j < N; ++j){
+                angle = j * 2 * M_PI / N;
+                point32.x = total_obs[i].x+(cos(angle) * avoid_radius);
+                point32.y = total_obs[i].y+(sin(angle) * avoid_radius);
                 // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }
@@ -129,28 +159,17 @@ int main(int argc, char** argv){
             rviz_obs.clear();
         }
 
-        //-----------------------------------
-        //              DEBUG
-        //-----------------------------------
-        // DEBUG(double(i_point), 1);
-        // DEBUG(double(node), 2);
-        // DEBUG(double(is_goal_reached), 3);
-        // DEBUG(double(once), 4);
-        // DEBUG(double(goal.x), 5);
-        // DEBUG(double(goal.y), 6);
-        // DEBUG(double(new_goal), 7);
-        // DEBUG(double(path_solving_process), 8);
-        // DEBUG(double(point_x[2]), 9);
-        // DEBUG(double(point_x[3]), 0);
-
         // Callback
         ros::spinOnce();
+
+        // Rate
+        // rate_1000000hz.sleep();
     }
 }
 
 //---------------------------------------------------------------------------- Functions --------------------------------------------------------------------------------
-// Path solving process
-std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point goal, std::vector<Point> obs_pose){
+// Path Solving Process
+std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, Point pose, Point goal, std::vector<Point> obs_pose){
 //----------------------------------------------------- Lines -----------------------------------------------------
     Line_tan robot_line;    // The tangent line of robot and obstacle
     Line_tan goal_line;     // The tangent line of goal and obstacle    
@@ -173,8 +192,6 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
     std::vector<double> cost;                                       // Cost for each path
     std::vector<Point> final_path;                                  // Final path we select
     geometry_msgs::PoseStamped Final_path_buffer;                   // Path buffer for service respond
-    Final_path_buffer.header.frame_id = "/robot1/map";              // Path frame_id
-    Final_path_buffer.header.stamp = ros::Time::now();              // Path stamp
     std::vector<geometry_msgs::PoseStamped> Final_path_responce;    // Path output for service respond
 
     // Obstacles
@@ -182,11 +199,17 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
     int which_obs = 0;              // Which obstacles we need to avoid 
     int obs_enc = 0;                // How many obstacles we have encountered 
     Point last_obs;                 // Previous obstacles that we ecountered
+   
+    // Radius
+    double obstacle_size = 0.08;
+    double normal_inflation = 0.03;
+    double safety_inflation = 0.1;
+    double clear_radius = obstacle_size+robot_size+normal_inflation;
+    double avoid_radius = obstacle_size+robot_size+safety_inflation;
 
     // Path simulation 
     Point begin_point;                                                      // Simulation begin point, end point will always be the target goal
-    Point intersection_1, intersection_2, intersection_3, intersection_4;   // Tangent line intersections
-    double path_dis[4];                                                     // Distance between begin_point -> intersection -> goal, parameter for intersection filter                                             
+    Point intersection_1, intersection_2, intersection_3, intersection_4;   // Tangent line intersections                                       
 
     // Obstacle detections
     double begin_border = 0.0;              // Begin border to determine which obstacles is inbetween the begin_point and the goal  
@@ -195,24 +218,34 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
     int all_clear = 0;                      // Is the path clear ? -> all obstacles
     double slope_robot_to_goal = 0.0;       // The slope of robot - goal line
     std::vector<double> dis_obs_to_robot;   // The distance between obstacle and robot
-    double dis_obs_to_path[2] = {0.0};      // The distance between obstacle and path
+    std::vector<double> dis_obs_to_path;    // The distance between obstacle and path
+
+    // Timeout
+    int timeout = 0;    // Timeout if the process is stucked !!
 
 //----------------------------------------------------- Loop started ---------------------------------------------------
+    // Repeat until process finished
     while(path_solving_process != Step::Finishing){
-        //Determination of new goal
+        // Timeout
+        timeout++;
+        if(timeout>=50){
+            path_solving_process = Step::Finishing;
+            ROS_FATAL("Path solving timeout -> Process has stopped !!");
+        }
+        // Determination of new goal
         if((goal.x != goal_ed.x && goal.y != goal_ed.y)){
             // Is the goal valid ?
-            if(goal.x > 3-r || goal.x < 0+r || goal.y > 2-r || goal.y < 0+r){
+            if(goal.x > 3-robot_size || goal.x < 0+robot_size || goal.y > 2-robot_size || goal.y < 0+robot_size){
                 new_goal = 0;
-                ROS_WARN("!---------------- Unvalid Goal ----------------!");
+                ROS_ERROR("!---------------- Unvalid Goal ----------------!");
                 break;
             }
             else    new_goal = 1;
             if(obs_pose.size()!=0){
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                    if(dis_point_to_point(obs_pose[i_obs], goal) < r){
+                    if(dis_point_to_point(obs_pose[i_obs], goal) < clear_radius){
                         new_goal = 0;
-                        ROS_WARN("!---------------- Unvalid Goal ----------------!");
+                        ROS_ERROR("!---------------- Unvalid Goal ----------------!");
                         break;
                     } 
                     else    new_goal = 1;
@@ -224,13 +257,14 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
             // Initialize the process             
             path_solving_process = Step::Checking;     
             // Path simulation point
-            begin_point = pose;
+            begin_point = Begin_Point;
             // Clear vector
             path_point.clear();
             // Path point
             path_point.push_back(pose);
-            if(new_goal)    ROS_INFO("!---------------- New goal recieved ----------------!");
-            ROS_INFO("Goal -> (%lf, %lf)", goal.x, goal.y);
+            if(new_goal)    ROS_INFO("!-------------------------- New goal received -------------------------!");
+            ROS_INFO("[Path Solver] Start point -> (%lf, %lf)", begin_point.x, begin_point.y);
+            ROS_INFO("[Path Solver] Target Goal -> (%lf, %lf)", goal.x, goal.y);
             // Binary tree
             binary.clear();
             binary.push_back(0);
@@ -243,29 +277,26 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
             //Step 1: First, we check if the point-to-point path is clear, if true -> keep on finding the next path, if not -> go to Step 2 & node++
             //if all path has been found -> jump out of the cycle & move to step 3
             if(path_solving_process == Step::Checking){
-                ROS_INFO("<---------- Checking ---------->");
+                ROS_WARN("<---------- Checking ----------->");
                 //Sorting the obstacles according to the distance between the obstacles and robot pose  (near -> far)
                 // First, we sort the obstacles by its distance with the begin point      
                 dis_obs_to_robot.clear();              
+                dis_obs_to_robot.reserve(obs_pose.size());
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++)  dis_obs_to_robot.push_back(dis_point_to_point(begin_point, obs_pose[i_obs]));
+                obs_pose = sort_obs_with_robot_dis(dis_obs_to_robot, obs_pose);                  
+                // Second, we culculate the distance of the obstacles and robot path(straight to goal) 
+                dis_obs_to_path.clear();
+                dis_obs_to_path.reserve(obs_pose.size());
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                    // ROS_WARN("begin_point -> (%lf, %lf)", begin_point.x, begin_point.y);
-                    ROS_WARN("distance(to robot) %d: %lf", i_obs, dis_obs_to_robot[i_obs]);
-                    ROS_WARN("obs[%d] -> (%lf,%lf)", i_obs, obs_pose[i_obs].x, obs_pose[i_obs].y);
+                    if(goal.x != begin_point.x) dis_obs_to_path.push_back(dis_line_to_point(goal, begin_point, obs_pose[i_obs]));
+                    else dis_obs_to_path.push_back(fabs(obs_pose[i_obs].x - goal.x));
                 }
-                obs_pose = sort_vector(dis_obs_to_robot, obs_pose);
-                // Then, we culculate the distance of the obstacles and robot path(straight to goal) 
-                slope_robot_to_goal = (goal.y - begin_point.y)/(goal.x - begin_point.x);
-                for(i_obs=0; i_obs<obs_pose.size(); i_obs++)  dis_obs_to_path[i_obs] = fabs(slope_robot_to_goal*obs_pose[i_obs].x-obs_pose[i_obs].y+(begin_point.y - (slope_robot_to_goal*begin_point.x)))/sqrt(pow(slope_robot_to_goal,2)+1);
-                for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                    ROS_WARN("distance(to path) %d: %lf", i_obs, dis_obs_to_path[i_obs]);
-                    ROS_WARN("obs[%d] -> (%lf,%lf)", i_obs, obs_pose[i_obs].x, obs_pose[i_obs].y);
-                }
-                // Determine is there any obstacles on the way & which one we will first encounter(because we have sort the obstacles)
 
                 // Reset all_clear
                 all_clear = 0;
                 
+                // Third, we determine is there any obstacles on the way & which one we will first encounter(because we have already sort the obstacles)
+                // Execptions for 0 obstacles -> no need to run path solving process
                 if(obs_pose.size() == 0){
                     path_point.push_back(goal);
                     multipath.push_back(path_point);
@@ -275,18 +306,29 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                 else{
                     for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
                         // We shall check from the nearest obstacle
-                        begin_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*begin_point.y+begin_point.x);
-                        goal_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*goal.y+goal.x);
-                        if(dis_obs_to_path[i_obs] >= r) is_path_clear = true;
+                        if(goal.x != begin_point.x){
+                            slope_robot_to_goal = (goal.y - begin_point.y)/(goal.x - begin_point.x);
+                            begin_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*begin_point.y+begin_point.x);
+                            goal_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*goal.y+goal.x);
+                        }
+                        else{
+                            ROS_WARN("border slope is vertical !!");
+                            if(obs_pose[i_obs].x > begin_point.x)    begin_border = 1;
+                            else if(obs_pose[i_obs].x < begin_point.x)   begin_border = -1;
+                            else    begin_border = 0;     
+                            if(obs_pose[i_obs].x > goal.x)    goal_border = 1;
+                            else if(obs_pose[i_obs].x < goal.x)   goal_border = -1;
+                            else    goal_border = 0;   
+                        }
+                        if(dis_obs_to_path[i_obs] >= clear_radius) is_path_clear = true;
                         else{
                             // Border consideration
-                            ROS_INFO("begin_border -> %lf, goal_border -> %lf", begin_border, goal_border);
                             if(goal.x >= pose.x && goal.y >= pose.y){
                                 if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
                                 else    is_path_clear = true;
                             }
                             else if(goal.x <= pose.x && goal.y > pose.y){
-                                if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
+                                if(begin_border < 0 && goal_border > 0)    is_path_clear = false;
                                 else    is_path_clear = true;
                             }
                             else if(goal.x < pose.x && goal.y <= pose.y){   
@@ -294,11 +336,10 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                                 else    is_path_clear = true;
                             }
                             else if(goal.x > pose.x && goal.y < pose.y){
-                                if(begin_border < 0 && goal_border > 0)    is_path_clear = false;
-                                else    is_path_clear = true;
+                                if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
+                                else    is_path_clear = true;                            
                             }
                             else    ROS_WARN("Undefined Circumstances");
-                            // is_path_clear = false;
                         }
                         // If the path is clear, it means that the path has been found
                         if(is_path_clear){
@@ -311,28 +352,19 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                                 // Reset path_point
                                 path_point.clear(); // Clear the vector
                                 path_point.push_back(pose); // Initialize the begin point of the path(robot pose)
-                                
                                 // Reset the begin_point for simulation
-                                begin_point.x = pose.x;
-                                begin_point.y = pose.y;
-                                
+                                begin_point = Begin_Point;
                                 // Try out other branches
                                 binary[level]++;
-
                                 // If the level has been fully searched -> back to the last level
-                                ROS_INFO("binary initial[%d] -> %d", level, binary[level]);
                                 for(int i = level; i>=0; i--){
                                     if(binary[i] > 1){
-                                        // ROS_INFO("binary over -> %d", binary[level]);
-                                        binary.pop_back();
-                                        level--;
-                                        // ROS_INFO("binary pop -> %d", binary[level]);
-                                        binary[level]++;
-                                        // ROS_INFO("binary plus -> %d", binary[level]);
+                                        // Binary counter of the path carry
+                                        binary.pop_back();  
+                                        level--;            
+                                        binary[level]++; 
                                     }
-                                    ROS_INFO("binary final[%d] -> %d", level, binary[level]);
                                 }
-                                
                                 // If the tree has been fully searched -> evaluate the path & select the best path
                                 // If not -> keep searching
                                 if(level == 0 && binary[level] == 1){
@@ -344,7 +376,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                                 level = 0;
                                 obs_enc = 0;
 
-                                ROS_INFO("|----------------- path %ld finished -----------------|", multipath.size());
+                                ROS_INFO("|-------------------------- path %ld finished --------------------------|", multipath.size());
                             }   
                         }
                         else{
@@ -352,23 +384,23 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                             if(obs_enc >= 2){
                                 ROS_INFO("|----------------- Replacing Process Started -----------------|");
                                 // Calculate the tangent line of the two obstacles(which_obs -> old data, i_obs -> new data)
-                                obs_line.line_param_insert_cc(last_obs, obs_pose[i_obs], r+stdev_inflation);
-                                robot_line.line_param_insert_pc(path_point[path_point.size()-2],last_obs,r+stdev_inflation);
+                                obs_line.line_param_insert_cc(last_obs, obs_pose[i_obs], avoid_radius);
+                                robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs, avoid_radius);
                                 // Find the intersection of obs_tan & robot_tan
-                                intersection_1 = obs_line.line_intersection_14(robot_line, obs_line, 11, path_point[path_point.size()-1]);   //robot line 1 or 2 -> obs line 1
-                                intersection_2 = obs_line.line_intersection_14(robot_line, obs_line, 12, path_point[path_point.size()-1]);   //robot line 1 or 2 -> obs line 2
-                                intersection_3 = obs_line.line_intersection_14(robot_line, obs_line, 13, path_point[path_point.size()-1]);   //robot line 1 or 2 -> obs line 3
-                                intersection_4 = obs_line.line_intersection_14(robot_line, obs_line, 14, path_point[path_point.size()-1]);   //robot line 1 or 2 -> obs line 4
+                                intersection_1 = obs_line.line_intersection_14(robot_line, obs_line, 11, path_point.back());   //robot line 1 or 2 -> obs line 1
+                                intersection_2 = obs_line.line_intersection_14(robot_line, obs_line, 12, path_point.back());   //robot line 1 or 2 -> obs line 2
+                                intersection_3 = obs_line.line_intersection_14(robot_line, obs_line, 13, path_point.back());   //robot line 1 or 2 -> obs line 3
+                                intersection_4 = obs_line.line_intersection_14(robot_line, obs_line, 14, path_point.back());   //robot line 1 or 2 -> obs line 4
                                 // Correct the path_point with the result above
-                                ROS_WARN("last path point -> (%lf, %lf)", path_point[path_point.size()-1].x, path_point[path_point.size()-1].y);
+                                ROS_WARN("last path point -> (%lf, %lf)", path_point.back().x, path_point.back().y);
                                 path_point.pop_back();
-                                ROS_WARN("last path point -> (%lf, %lf)", path_point[path_point.size()-1].x, path_point[path_point.size()-1].y);
+                                ROS_WARN("last path point -> (%lf, %lf)", path_point.back().x, path_point.back().y);
                                 path_point.push_back(point_select(intersection_1, intersection_2, intersection_3, intersection_4, binary[level-1], pose, goal));
-                                ROS_WARN("last path point -> (%lf, %lf)", path_point[path_point.size()-1].x, path_point[path_point.size()-1].y);
+                                ROS_WARN("last path point -> (%lf, %lf)", path_point.back().x, path_point.back().y);
                                 // Correct the simlulate begin point
-                                begin_point = path_point[path_point.size()-1];
+                                begin_point = path_point.back();
 
-                                ROS_INFO("point replace -> (%lf, %lf)", path_point[path_point.size()-1].x, path_point[path_point.size()-1].y);
+                                ROS_INFO("point replace -> (%lf, %lf)", path_point.back().x, path_point.back().y);
                                 ROS_INFO("|----------------- Replacing Process Finished -----------------|");
                             }
 
@@ -382,18 +414,16 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                         }
                     }       
                 }
-                
-                ROS_FATAL("is_path_clear : %d", is_path_clear);
             }
             //Step 2: Then, we find out the tangent line between the obstacle and our robot/goal, find out the turning point, when it's done -> back to step 1
             if(path_solving_process == Step::Planning){
-                ROS_INFO("<---------- Planning ---------->");
+                ROS_WARN("<---------- Planning ---------->");
                 ROS_INFO("obstacle detected -> (%lf, %lf)", obs_pose[which_obs].x, obs_pose[which_obs].y);
                 
                 ROS_INFO("begin point -> (%lf, %lf)", begin_point.x, begin_point.y);
 
-                goal_line.line_param_insert_pc(goal,obs_pose[which_obs],r+stdev_inflation);
-                robot_line.line_param_insert_pc(begin_point,last_obs,r+stdev_inflation);
+                goal_line.line_param_insert_pc(goal, obs_pose[which_obs], avoid_radius);
+                robot_line.line_param_insert_pc(begin_point, last_obs, avoid_radius);
 
                 intersection_1 = robot_line.line_intersection_22(robot_line, goal_line, 11);   //robot line 1 -> goal line 1
                 intersection_2 = robot_line.line_intersection_22(robot_line, goal_line, 12);   //robot line 1 -> goal line 2
@@ -408,9 +438,9 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
                 ROS_INFO("binary[%d] = %d", level, binary[level]);
                 if(obs_enc == 1)    path_point.push_back(point_select(intersection_1, intersection_2, intersection_3, intersection_4, binary[level], pose, goal));
                 else if(obs_enc >= 2)   path_point.push_back(obs_line.line_intersection_12(obs_line, goal_line, begin_point, goal));
-                ROS_INFO("point raw -> (%lf, %lf)", path_point[path_point.size()-1].x, path_point[path_point.size()-1].y);
+                ROS_INFO("point raw -> (%lf, %lf)", path_point.back().x, path_point.back().y);
                 //Simulate begin point
-                begin_point = path_point[path_point.size()-1];
+                begin_point = path_point.back();
 
                 ROS_WARN("obs_enc -> %d", obs_enc);
 
@@ -418,7 +448,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
             }
             // Step 3: Select the shortest path
             if(path_solving_process == Step::Selecting){
-                ROS_INFO("<---------- Selecting ---------->");
+                ROS_WARN("<---------- Selecting ---------->");
                 for(int m = 0; m < multipath.size(); m++){
                     cost_buffer = 0.0;
                     for(int s = 1; s < multipath[m].size(); s++){
@@ -444,26 +474,35 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point pose, Point g
             }
             //Step 4: Finally, we publish the path
             if(path_solving_process == Step::Publishing){
-                ROS_INFO("<---------- Publishing ---------->");
+                ROS_WARN("<--------- Publishing ---------->");
                 Final_path_responce.clear();
                 Final_path_responce.reserve(final_path.size());
+                // Undevide path
+                // for(int p=0; p<final_path.size(); p++){
+                //     Final_path_buffer.header.frame_id = "/robot1/map";              // Path frame_id
+                //     Final_path_buffer.header.stamp = ros::Time::now();              // Path stamp
+                //     Final_path_buffer.pose.position.x = final_path[p].x; 
+                //     Final_path_buffer.pose.position.y = final_path[p].y; 
+                //     ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
+                //     Final_path_responce.push_back(Final_path_buffer);
+                // }
+                // Divide path
                 for(int p=0; p<final_path.size()-1; p++){
-                    Final_path_buffer.pose.position.x = final_path[p].x; 
-                    Final_path_buffer.pose.position.y = final_path[p].y; 
-                    ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
-                    Final_path_responce.push_back(Final_path_buffer);
-                    // Divide path
-                    // for(double c=0.0; c<=50; c++){
-                    //     Final_path_buffer.pose.position.x = final_path[p].x+((final_path[p+1].x-final_path[p].x)*(c/50)); 
-                    //     Final_path_buffer.pose.position.y = final_path[p].y+((final_path[p+1].y-final_path[p].y)*(c/50)); 
-                    //     ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
-                    //     Final_path_responce.push_back(Final_path_buffer);
-                    // }
+                    Final_path_buffer.header.frame_id = "/robot1/map";              // Path frame_id
+                    Final_path_buffer.header.stamp = ros::Time::now();              // Path stamp
+                    for(double c=0.0; c<=50; c++){
+                        Final_path_buffer.pose.position.x = final_path[p].x+((final_path[p+1].x-final_path[p].x)*(c/50)); 
+                        Final_path_buffer.pose.position.y = final_path[p].y+((final_path[p+1].y-final_path[p].y)*(c/50)); 
+                        ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
+                        Final_path_responce.push_back(Final_path_buffer);
+                    }
                 }
                 path_solving_process = Step::Finishing;
             }        
         }
     }
+    // Reset timeout
+    timeout = 0;
     // Return Path responce
     return Final_path_responce;
 }
@@ -493,12 +532,15 @@ double dis_point_to_point(Point a, Point b){
     distance = sqrt(pow((a.x-b.x),2)+pow((a.y-b.y),2));
     return(distance);
 }
-// Distance between point and line
+// Distance between point and line -> slope needs to have value !!
 double dis_line_to_point(Point line_a, Point line_b, Point point){
     double slope = 0.0;
     double distance = 0.0;
-    slope = (line_b.y - line_a.y)/(line_b.x - line_a.x);
-    distance = fabs(slope*point.x-point.y+(line_a.y - (slope*line_a.x)))/sqrt(pow(slope,2)+1);
+    if(line_a.x != line_b.x){
+        slope = (line_b.y - line_a.y)/(line_b.x - line_a.x);
+        distance = fabs(slope*point.x-point.y+(line_a.y - (slope*line_a.x)))/sqrt(pow(slope,2)+1);
+    }
+    else    ROS_ERROR("The line is vertical !!");
     return(distance);
 }
 // Insert & calculate the parameters of point - circle line
@@ -604,20 +646,20 @@ Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point comfir
             delta_y = -(t.a1*u.c2)+(t.c1*u.a2);
         }
         if(n == 13){
-            // delta = (t.a1*u.b3)-(t.b1*u.a3);
-            // delta_x = -(t.c1*u.b3)+(t.b1*u.c3);
-            // delta_y = -(t.a1*u.c3)+(t.c1*u.a3);
-            delta = 1;
-            delta_x = -1;
-            delta_y = -1;
+            delta = (t.a1*u.b3)-(t.b1*u.a3);
+            delta_x = -(t.c1*u.b3)+(t.b1*u.c3);
+            delta_y = -(t.a1*u.c3)+(t.c1*u.a3);
+            // delta = 1;
+            // delta_x = -1;
+            // delta_y = -1;
         }
         if(n == 14){
-            // delta = (t.a1*u.b4)-(t.b1*u.a4);
-            // delta_x = -(t.c1*u.b4)+(t.b1*u.c4);
-            // delta_y = -(t.a1*u.c4)+(t.c1*u.a4);
-            delta = 1;
-            delta_x = -1;
-            delta_y = -1;
+            delta = (t.a1*u.b4)-(t.b1*u.a4);
+            delta_x = -(t.c1*u.b4)+(t.b1*u.c4);
+            delta_y = -(t.a1*u.c4)+(t.c1*u.a4);
+        //     delta = 1;
+        //     delta_x = -1;
+        //     delta_y = -1;
         }
     }
     else if((t.a1*comfirm_point.x + t.b1*comfirm_point.y + t.c1) > (t.a2*comfirm_point.x + t.b2*comfirm_point.y + t.c2)){
@@ -633,20 +675,20 @@ Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point comfir
             delta_y = -(t.a2*u.c2)+(t.c2*u.a2);
         }
         if(n == 13){
-            // delta = (t.a2*u.b3)-(t.b2*u.a3);
-            // delta_x = -(t.c2*u.b3)+(t.b2*u.c3);
-            // delta_y = -(t.a2*u.c3)+(t.c2*u.a3);
-            delta = 1;
-            delta_x = -1;
-            delta_y = -1;
+            delta = (t.a2*u.b3)-(t.b2*u.a3);
+            delta_x = -(t.c2*u.b3)+(t.b2*u.c3);
+            delta_y = -(t.a2*u.c3)+(t.c2*u.a3);
+            // delta = 1;
+            // delta_x = -1;
+            // delta_y = -1;
         }
         if(n == 14){
-            // delta = (t.a2*u.b4)-(t.b2*u.a4);
-            // delta_x = -(t.c2*u.b4)+(t.b2*u.c4);
-            // delta_y = -(t.a2*u.c4)+(t.c2*u.a4);
-            delta = 1;
-            delta_x = -1;
-            delta_y = -1;
+            delta = (t.a2*u.b4)-(t.b2*u.a4);
+            delta_x = -(t.c2*u.b4)+(t.b2*u.c4);
+            delta_y = -(t.a2*u.c4)+(t.c2*u.a4);
+            // delta = 1;
+            // delta_x = -1;
+            // delta_y = -1;
         }
     }
     else    ROS_ERROR("the point is not on the robot_line !!");
@@ -704,14 +746,13 @@ Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point
     ROS_INFO("intersection_12 : (%lf, %lf)", intersection.x, intersection.y);
     return(intersection);
 }
-// Bubble sort for array
-void sort(double master[2], double slave[2]){
+// Bubble sort for intersection filter
+void sort(double master[4], int slave[4]){
     double buffer = 0.0;
     int tmp = 0;
-    int i = 0;
-    int j = 0;
-    for(i = 2-1; i > 0; i--){
-        for(j = 0; j <= i-1; j++){
+    
+    for(int i = 0; i < 4-1; i++){
+        for(int j = 0; j < 4-1-i; j++){
             if(master[j] > master[j+1]){
                 buffer = master[j];
                 tmp = slave[j];
@@ -719,19 +760,17 @@ void sort(double master[2], double slave[2]){
                 slave[j] = slave[j+1];
                 master[j+1] = buffer;
                 slave[j+1] = tmp;
-                // std::swap(slave[j], slave[j+1]);
             }
         }
     }
 }
-// Bubble sort for vector
-std::vector<Point> sort_vector(std::vector<double> master, std::vector<Point> slave){
+// Bubble sort for obstacles with distance between robot & obstacles 
+std::vector<Point> sort_obs_with_robot_dis(std::vector<double> master, std::vector<Point> slave){
     double buffer = 0.0;
     Point tmp;
-    int i = 0;
-    int j = 0;
-    for(i = master.size()-1; i > 0; i--){
-        for(j = 0; j <= i-1; j++){
+
+    for(int i = 0; i < master.size()-1; i++){
+        for(int j = 0; j < master.size()-1-i; j++){
             if(master[j] > master[j+1]){
                 buffer = master[j];
                 tmp = slave[j];
@@ -739,26 +778,26 @@ std::vector<Point> sort_vector(std::vector<double> master, std::vector<Point> sl
                 slave[j] = slave[j+1];
                 master[j+1] = buffer;
                 slave[j+1] = tmp;
-                // std::swap(master[j], master[j+1]);
-                // std::swap(slave[j], slave[j+1]);
             }
         }
     }
+
     return(slave);
 }
 // Bubble sort for cost
 std::vector<std::vector<Point>> sort_path(std::vector<double> cost, std::vector<std::vector<Point>> multipath){
     double buffer = 0.0;
-    // std::vector<Point> tmp;
-    int i = 0;
-    int j = 0;
-    for(i = cost.size()-1; i > 0; i--){
-        for(j = 0; j <= i-1; j++){
+    std::vector<Point> tmp;
+
+    for(int i = 0; i < cost.size()-1; i++){
+        for(int j = 0; j < cost.size()-1-i; j++){
             if(cost[j] > cost[j+1]){
                 buffer = cost[j];
+                tmp = multipath[j];
                 cost[j] = cost[j+1];
+                multipath[j] = multipath[j+1];
                 cost[j+1] = buffer;
-                multipath[j].swap(multipath[j+1]);
+                multipath[j+1] = tmp;
             }
         }
     }
@@ -772,8 +811,7 @@ Point point_select(Point a, Point b, Point c, Point d, int rank, Point pose, Poi
     int point = 0;
     bool cut = 0;
     double path_dis[4] = {0.0};
-    int sequence[4] = {0};
-    double sequence_double[4] = {0.0,1.0,2.0,3.0};
+    int sequence[4] = {0,1,2,3};
     bool valid[4] = {false};
     ROS_INFO("Point_select -> (%lf,%lf)", a.x, a.y);
     ROS_INFO("Point_select -> (%lf,%lf)", b.x, b.y);
@@ -781,10 +819,10 @@ Point point_select(Point a, Point b, Point c, Point d, int rank, Point pose, Poi
     ROS_INFO("Point_select -> (%lf,%lf)", d.x, d.y);
     // double distance[4] = {0.0};
     //Determine is the point valid
-    if(a.x >= 0.2 && a.x <= 2.8 && a.y >= 0.2 && a.y <= 1.8)  valid[0] = true;
-    if(b.x >= 0.2 && b.x <= 2.8 && b.y >= 0.2 && b.y <= 1.8)  valid[1] = true;
-    if(c.x >= 0.2 && c.x <= 2.8 && c.y >= 0.2 && c.y <= 1.8)  valid[2] = true;    
-    if(d.x >= 0.2 && d.x <= 2.8 && d.y >= 0.2 && d.y <= 1.8)  valid[3] = true;   
+    if(a.x >= 0+robot_size && a.x <= 3-robot_size && a.y >= 0+robot_size && a.y <= 2-robot_size)  valid[0] = true;
+    if(b.x >= 0+robot_size && b.x <= 3-robot_size && b.y >= 0+robot_size && b.y <= 2-robot_size)  valid[1] = true;
+    if(c.x >= 0+robot_size && c.x <= 3-robot_size && c.y >= 0+robot_size && c.y <= 2-robot_size)  valid[2] = true;    
+    if(d.x >= 0+robot_size && d.x <= 3-robot_size && d.y >= 0+robot_size && d.y <= 2-robot_size)  valid[3] = true;   
     // distance[0] = dis_line_to_point(a, goal, Point_convert(obs_pose_x[0], obs_pose_y[0]));
     // distance[1] = dis_line_to_point(b, goal, Point_convert(obs_pose_x[0], obs_pose_y[0]));
     // distance[2] = dis_line_to_point(c, goal, Point_convert(obs_pose_x[0], obs_pose_y[0]));
@@ -798,8 +836,7 @@ Point point_select(Point a, Point b, Point c, Point d, int rank, Point pose, Poi
     path_dis[1] = dis_point_to_point(pose,b)+dis_point_to_point(goal,b);
     path_dis[2] = dis_point_to_point(pose,c)+dis_point_to_point(goal,c);
     path_dis[3] = dis_point_to_point(pose,d)+dis_point_to_point(goal,d);
-    sort(path_dis,sequence_double);
-    for(int j=0; j<4; j++)  sequence[j] = int(sequence_double[j]);
+    sort(path_dis,sequence);
     //Determine the point base on priority & valid
     //find the nearest point
     if(rank == 0){
@@ -843,13 +880,4 @@ Point point_select(Point a, Point b, Point c, Point d, int rank, Point pose, Poi
     // ROS_INFO("Point_select -> (%lf,%lf)", Point.x, Point.y);
 
     return(Point);
-}
-// Debug function -> Print the value once if the value stays the same
-void DEBUG(double data, int i){
-    if(data != buffer[i]) print_once[i] = 0;  
-    buffer[i] = data;        
-    if(print_once[i] == 0){
-        ROS_FATAL("path_solver -> Data[%d] = %lf", i, buffer[i]);
-        print_once[i] = 1;
-    }
 }

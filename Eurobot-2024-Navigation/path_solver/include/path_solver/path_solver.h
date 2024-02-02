@@ -20,9 +20,7 @@
 #include <algorithm>
 
 #define PI 3.14159
-#define r 0.15 //0.25
-#define obstacle_size 0.15 //0.25
-#define stdev_inflation 0.1 //0.08
+#define robot_size 0.14
 #define nodes_cost_param 1.2
 
 enum class Step{
