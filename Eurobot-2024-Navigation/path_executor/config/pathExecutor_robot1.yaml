@@ -1,7 +1,7 @@
 frame: "robot1/map"
 # robot_type: "holonomic"
 robot_type: "differential"
-control_frequency: 20
+control_frequency: 10
 xy_tolerance: 0.03
 theta_tolerance: 0.03
 lookahead_d: 0.3

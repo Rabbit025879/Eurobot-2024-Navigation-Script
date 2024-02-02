@@ -8,9 +8,9 @@ std::vector<Point>  obs_pose_pot;       // Static obstacles from sensors -> pot 
 Point  obs_pose_rival;                  // Dynamic obstacles from sensors -> rival
 // Obstacle radius
 double obstacle_size = 0.08;
-double normal_inflation = 0.03;
+double normal_inflation = 0.07;
 double safety_inflation = 0.1;
-double clear_radius = obstacle_size+robot_size+normal_inflation;
+double clear_radius = obstacle_size+robot_size+safety_inflation-0.03;
 double avoid_radius = obstacle_size+robot_size+safety_inflation;
 // Replan counter
 int cnt_replan = 0;
@@ -90,7 +90,7 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
 
     // Replan count
     cnt_replan++;
-    if(cnt_replan % 10 == 1){
+    if(cnt_replan % 20 == 3){
         begin_point.x = pose.x;
         begin_point.y = pose.y;
     }
@@ -99,13 +99,16 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     // Responce
     responce.plan.header.frame_id = "/robot1/map";
     responce.plan.header.stamp = ros::Time::now();
-    for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
-        if(dis_point_to_point(obs_pose[i_obs], goal) <= clear_radius){
-            responce.plan.poses = prev_path;
+    if(obs_pose.size()>0){
+        for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
+            if(dis_point_to_point(obs_pose[i_obs], goal) <= clear_radius){
+                responce.plan.poses = prev_path;
+            }
+            else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
         }
-        else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
+        prev_path = responce.plan.poses; // Record the path
     }
-    prev_path = responce.plan.poses; // Record the path
+    else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
 
     ROS_FATAL("cnt_replan -> %d", cnt_replan);
     return true;
@@ -496,16 +499,16 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                 for(int p=0; p<final_path.size()-1; p++){
                     Final_path_buffer.header.frame_id = "/robot1/map";              // Path frame_id
                     Final_path_buffer.header.stamp = ros::Time::now();              // Path stamp
-                    for(double c=0.0; c<=50; c++){
-                        Final_path_buffer.pose.position.x = final_path[p].x+((final_path[p+1].x-final_path[p].x)*(c/50)); 
-                        Final_path_buffer.pose.position.y = final_path[p].y+((final_path[p+1].y-final_path[p].y)*(c/50)); 
+                    for(double c=0.0; c<=60; c++){
+                        Final_path_buffer.pose.position.x = final_path[p].x+((final_path[p+1].x-final_path[p].x)*(c/60)); 
+                        Final_path_buffer.pose.position.y = final_path[p].y+((final_path[p+1].y-final_path[p].y)*(c/60)); 
                         // ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
                         Final_path_responce.push_back(Final_path_buffer);
-                    }
+                    }  
                 }
                 // Prevent path roll back
                 for(int i_path=1; i_path<final_path.size(); i_path++){
-                    if((fabs(final_path[i_path].x - pose.x) <= 0.03) && (fabs(final_path[i_path].y - pose.y) <= 0.03))    cnt_replan = 0;
+                    if((fabs(final_path[i_path].x - pose.x) <= 0.08) && (fabs(final_path[i_path].y - pose.y) <= 0.08))    cnt_replan = 0;
                 }
                 path_solving_process = Step::Finishing;
             }        
