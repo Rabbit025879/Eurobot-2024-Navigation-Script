@@ -167,7 +167,7 @@ class PathExecutor {
     void Timer_Callback(const ros::TimerEvent& e);
 
     MODE working_mode_;
-    // MODE working_mode_pre_;
+    MODE working_mode_pre_;
 
     void Switch_Mode(MODE next_mode);
     // bool is_global_path_switched_;
@@ -200,6 +200,16 @@ class PathExecutor {
     double w_before = 0;
     bool keep_x = 0 ;
     double x_before ;
+
+    // Diff Drive Calculation Result
+    double relative_radius_;
+    double relative_distance_;
+    double relative_steer_angle_ ;
+    double relative_is_couterclockwise_;
+    double relative_drive_straight_;
+    double straight_margin_rad_;
+    double deviate_margin_rad_;
+    void CalculateSteer(RobotState local_goal);
 
     double angular_kp_;
     double angular_max_vel_;
@@ -256,7 +266,6 @@ class PathExecutor {
     double dock_kp_;
     double sd_start_dist_;
     bool start_final_spin_;
-    double relative_drive_straight_;
     double spin_and_dock_start_dist_;
 
     int Get_Next_Local_Goal();   
@@ -265,7 +274,7 @@ class PathExecutor {
     double Extract_Velocity(VELOCITY vel_type, RobotState goal_pos, double acceleration);
     double Angle_Limit_Checking(double theta);
     void SetDrivingArg(bool &relative_drive_straight, bool &relative_is_couterclockwise, double &relative_steer_angle, double &relative_radius, double &relative_distance, RobotState local_goal);
-    void SpinAndDock(RobotState local_goal, bool need_forward);
+    void SpinAndDock(RobotState local_goal, bool opt);
 
     RobotState Rolling_Window(RobotState cur_pos, std::vector<RobotState> path, double L_d);
 };

@@ -52,6 +52,10 @@ PathExecutor::~PathExecutor() {
     nh_local_.deleteParam("dock_kp");
     nh_local_.deleteParam("spin_and_dock_start_dist");
 
+    // diff drive
+    nh_local_.deleteParam("straight_margin_rad");
+    nh_local_.deleteParam("deviate_margin_rad");
+
     vel_pub_.shutdown();
     pose_sub_.shutdown();
     diff_radius_pub_.shutdown();
@@ -67,7 +71,7 @@ void PathExecutor::initialize() {
     timer_ = nh_.createTimer(ros::Duration(1.0 / control_frequency_), &PathExecutor::Timer_Callback, this, false);
 
     working_mode_ = MODE::IDLE;
-    // working_mode_pre_ = MODE::IDLE;
+    working_mode_pre_ = MODE::IDLE;
 
     t_bef_ = ros::Time::now();
     t_now_ = ros::Time::now();
@@ -125,6 +129,10 @@ bool PathExecutor::initializeParams(std_srvs::Empty::Request& req, std_srvs::Emp
     nh_local_.param<double>("spin_kp", spin_kp_, 5.5);
     nh_local_.param<double>("dock_kp", dock_kp_, 1.2);
     nh_local_.param<double>("spin_and_dock_start_dist", spin_and_dock_start_dist_, 0.03);
+
+    // diff drive
+    nh_local_.param<double>("straight_margin_rad", straight_margin_rad_, (double)(3.0 * M_PI / 180.0));
+    nh_local_.param<double>("deviate_margin_rad", deviate_margin_rad_, (double)(10.0 * M_PI / 180.0));
 
     // teb, g2o param
     // nh_local_.param<double>("weight_obstacle", weight_obstacle_, 50);
@@ -201,7 +209,7 @@ void PathExecutor::Goal_Callback(const geometry_msgs::PoseStamped::ConstPtr& pos
 
     // is_local_goal_final_reached_ = false;
     // is_global_path_switched_ = false;
-    Switch_Mode(MODE::TRACKING);
+    Switch_Mode(MODE::START_SPIN);
     run_time_ = ros::Time::now();
         // new_goal = true;
     linear_integration_ = 0;
@@ -287,7 +295,7 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
     // ROS_INFO_STREAM("[Path Executor]: in timercallback");
     if (working_mode_ == MODE::TRACKING) {
         if (is_XY_Reached(cur_pose_, goal_pose_) && is_Theta_Reached(cur_pose_, goal_pose_) && !is_goal_blocked_) {
-            ROS_INFO_STREAM("[Path Executor]: GOAL REACHED ! (" << cur_pose_.x_ << "," << cur_pose_.y_ << ") | (" << goal_pose_.x_ << "," << goal_pose_.y_ << ")");
+            ROS_INFO_STREAM("[Path Executor]: GOAL REACHED !" << fabs(goal_pose_.y_ - cur_pose_.y_));
             ROS_INFO_STREAM("[pathExecutor]" << " RUNTIME " << (ros::Time::now() - run_time_).toSec() << "s");
             Switch_Mode(MODE::IDLE);
             velocity_state_.x_ = 0;
@@ -334,13 +342,7 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
                 return;
             }      
         }
-        if (replan_idx_ >= replan_frequency_divider_) {
-            replan_idx_ = 0;
         Get_Global_Path(cur_pose_, goal_pose_);
-        }
-        else {
-            replan_idx_++;
-        }
     }
     else if (working_mode_ == MODE::IDLE) {
         velocity_state_.x_ = 0;
@@ -348,11 +350,15 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
         velocity_state_.theta_ = 0;
         Velocity_Publish();
     }
+    else if (working_mode_ == MODE::START_SPIN) {
+        RobotState local_goal = Rolling_Window(cur_pose_, global_path_, lookahead_d_);
+        SpinAndDock(local_goal, 0);
+    }
     else if (working_mode_ == MODE::END_SPIN) {
-        if (is_XY_Reached(cur_pose_, goal_pose_) && is_Theta_Reached(cur_pose_, goal_pose_)) {
+        if (is_Theta_Reached(cur_pose_, goal_pose_)) {
             Switch_Mode(MODE::TRACKING);
         }
-        SpinAndDock(goal_pose_, 0);
+        SpinAndDock(goal_pose_, 1);
     }
     else {
         ROS_ERROR("[Path Executor]: WRONG MODE!");
@@ -360,17 +366,28 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
 }
 
 void PathExecutor::Switch_Mode(MODE next_mode) {
+    working_mode_pre_ = working_mode_;
     working_mode_ = next_mode;
     if (working_mode_ == MODE::IDLE) {
         ROS_INFO_STREAM("[Path Executor]: switch mode to idle");
     }
-    else {
+    else if (working_mode_ == MODE::TRACKING) {
         ROS_INFO_STREAM("[Path Executor]: switch mode to tracking");
+    }
+    else if (working_mode_ == MODE::START_SPIN) {
+        ROS_INFO_STREAM("[Path Executor]: switch mode to start spin");
+    }
+    else if (working_mode_ == MODE::END_SPIN) {
+        ROS_INFO_STREAM("[Path Executor]: switch mode to end spin");
+    }
+    else {
+        ROS_ERROR("[Path Executor]: WRONG MODE!");
     }
 }
 
 bool PathExecutor::is_XY_Reached(RobotState cur_pos, RobotState goal_pos) {
     if (cur_pos.distanceTo(goal_pos) < xy_tolerance_) {
+    // if (fabs(cur_pos.x_ - goal_pos.x_) < xy_tolerance_) {
         return true;
     } else {
         return false;
@@ -678,81 +695,32 @@ void PathExecutor::Omni_Controller(RobotState local_goal) {
 
     t_bef_ = t_now_;
 }
-
 void PathExecutor::Diff_Controller(RobotState local_goal) {
         // RobotState local_goal = global_path_[cur_path_idx_];
-
     double linear_velocity = 0.0;
     double angular_velocity;
 
     int rotate_direction = 0;
     // only for diff drive, dd = diff drive
 
-    double relative_rotate_first = 0;
-    double relative_radius = 0;
-    double relative_is_vector_reverse = 0;
-    double relative_distance = 0;
-    double relative_steer_angle = 0;
-    double relative_is_couterclockwise = 1;
-    double straight_margin_rad = 3 * M_PI / 180;
+    // double relative_rotate_first = 0;
     // double relative_w_rate = 1;
     
     double w_compress_ratio = 1;
 
-    double relative_drive_straight = 1;
     double relative_lpf_w[3] = {0.0};
     double relative_beta = 0.98;
     
     std_msgs::Float64 diff_radius;
 
-    relative_distance = sqrt(pow(local_goal.x_-cur_pose_.x_,2)+pow(local_goal.y_-cur_pose_.y_,2));
- 
-    // a*b=|a||b|*cos(theta) ==> theta = acos(a*b/|a||b|)
-    relative_steer_angle = acos((cos(cur_pose_.theta_)*(local_goal.x_ - cur_pose_.x_)+sin(cur_pose_.theta_)*(local_goal.y_ - cur_pose_.y_))/(sqrt(pow(local_goal.x_-cur_pose_.x_,2)+pow(local_goal.y_-cur_pose_.y_,2))));
-
-    // sin(theta)= a X b to define whether the clockwise is <=0 clockwise ; >0 counterclockwise 
-    if((cos(cur_pose_.theta_)*(local_goal.y_ - cur_pose_.y_)-sin(cur_pose_.theta_)*(local_goal.x_ - cur_pose_.x_))<=0)
-        relative_is_couterclockwise = -1;
-    else
-        relative_is_couterclockwise = 1;
-
+  
+    CalculateSteer(local_goal);
     // to avoid the trajetory deviate the path too much, make it rotate while the angle to large
-    if(((relative_steer_angle >= 0.5&& relative_steer_angle <= 2.64 ) || (relative_steer_angle >= 3.64 && relative_steer_angle <= 5.78 )))
-        relative_rotate_first = 1;
-    else
-        relative_rotate_first = 0;
+    // if(((relative_steer_angle_ >= 0.5&& relative_steer_angle_ <= 2.64 ) || (relative_steer_angle_ >= 3.64 && relative_steer_angle_ <= 5.78 )))
+    //     relative_rotate_first = 1;
+    // else
+    //     relative_rotate_first = 0;
 
-    // if angle > 90 degree , change to reverse driving
-    // ROS_INFO_STREAM("path executor: relative_steer_angle: " << relative_steer_angle);
-    if(relative_steer_angle <= M_PI/2) {
-        if (relative_steer_angle <= straight_margin_rad) {
-            relative_radius = -1;
-        }
-        else {
-            relative_radius = relative_distance/(2*(sin(relative_steer_angle)));
-        }
-        relative_drive_straight = 1;
-    }
-    else {
-        if(can_reverse_drive_== 0) {
-            if (relative_steer_angle-M_PI/2 <= straight_margin_rad) {
-                relative_radius = -1;
-            }
-            else {
-                relative_radius = relative_distance/(2*(sin(relative_steer_angle-M_PI/2)));
-            }
-            relative_drive_straight = 1;
-        }else{
-            if (M_PI-relative_steer_angle <= straight_margin_rad) {
-                relative_radius = -1;
-            }
-            else {
-                relative_radius = relative_distance/(2*(sin(M_PI-relative_steer_angle)));
-            }
-            relative_drive_straight = -1;
-        }
-    }
-    // ROS_INFO_STREAM("path executor: relative_radius: " << relative_radius << " " << relative_steer_angle);
     
     t_now_ = ros::Time::now();
 
@@ -771,18 +739,19 @@ void PathExecutor::Diff_Controller(RobotState local_goal) {
     //     velocity_state_.x_ = linear_velocity;
     // } 
     else {
-        linear_velocity = relative_drive_straight * Extract_Velocity(VELOCITY::LINEAR, goal_pose_, linear_acceleration_);
+        linear_velocity = relative_drive_straight_ * Extract_Velocity(VELOCITY::LINEAR, goal_pose_, linear_acceleration_);
         if(!keep_x){
-            if (relative_radius == -1) {
+            if (relative_radius_ == -1) {
                 angular_velocity = 0;
             }
             else {
-                angular_velocity = relative_is_couterclockwise * linear_velocity/(relative_radius);
+                angular_velocity = relative_is_couterclockwise_ * linear_velocity/(relative_radius_);
             }
 
-            if (abs(angular_velocity) > angular_max_vel_)
-                angular_velocity = angular_velocity / abs(angular_velocity) * angular_max_vel_ ;
+            // if (abs(angular_velocity) > angular_max_vel_)
+            //     angular_velocity = angular_velocity / abs(angular_velocity) * angular_max_vel_ ;
             
+            // angu vel depressed by angu acc
             // if(angular_velocity > w_before + angular_acceleration_*dt_){
             //     angular_velocity = w_before + angular_acceleration_ *dt_;
             // }
@@ -808,21 +777,22 @@ void PathExecutor::Diff_Controller(RobotState local_goal) {
             //     angular_velocity = w_before - angular_acceleration_ * dt_;
             //     keep_x = 0;
             // }     
-            if (relative_rotate_first == 1)
-                angular_velocity = angular_velocity / abs(angular_velocity) * angular_max_vel_;
+            // if (relative_rotate_first == 1)
+            //     angular_velocity = angular_velocity / abs(angular_velocity) * angular_max_vel_;
 
             velocity_state_.theta_ = angular_velocity;
-            if (angular_velocity == 0) {
-                velocity_state_.x_ = linear_velocity;
-            }
-            else {
-                velocity_state_.x_ = relative_radius * angular_velocity * relative_is_couterclockwise * abs(relative_rotate_first - 1);
-            }
+            velocity_state_.x_ = linear_velocity;
+            // if (angular_velocity == 0) {
+            //     velocity_state_.x_ = linear_velocity;
+            // }
+            // else {
+            //     velocity_state_.x_ = relative_radius_ * angular_velocity * relative_is_couterclockwise_;
+            // }
             w_before = velocity_state_.theta_;
 
         }
     
-        diff_radius.data = cur_pose_.distanceTo(goal_pose_);
+        diff_radius.data = relative_radius_;
         diff_radius_pub_.publish(diff_radius);
     }
 
@@ -861,12 +831,12 @@ double PathExecutor::Extract_Velocity(VELOCITY vel_type, RobotState goal_pos, do
                 output_vel = std::min(linear_max_vel_, last_vel + d_vel);
             }
 
-            if (xy_err > 0.4 && output_vel < last_vel) {
-                output_vel = last_vel;
-            }
-            if (xy_err > 0.4 && output_vel < last_vel) {
-                output_vel = last_vel;
-            }
+            // if (xy_err > 0.4 && output_vel < last_vel) {
+            //     output_vel = last_vel;
+            // }
+            // if (xy_err > 0.4 && output_vel < last_vel) {
+            //     output_vel = last_vel;
+            // }
             // if (output_vel < 0.01) {
             //     output_vel = 0;
             // }
@@ -889,29 +859,97 @@ double PathExecutor::Extract_Velocity(VELOCITY vel_type, RobotState goal_pos, do
             }
 
             // Saturation
-            if (output_vel > angular_max_vel_)
-                output_vel = angular_max_vel_;
-            if (output_vel < -angular_max_vel_)
-                output_vel = -angular_max_vel_;
+            // if (output_vel > angular_max_vel_)
+            //     output_vel = angular_max_vel_;
+            // if (output_vel < -angular_max_vel_)
+            //     output_vel = -angular_max_vel_;
         }
     }
     return output_vel;
 }
 
-void PathExecutor::SpinAndDock(RobotState local_goal, bool need_forward) {
-    // ROS_INFO_STREAM("[Path Executor]: in spin and dock");
-    double theta_err = local_goal.theta_ - cur_pose_.theta_;
-    while (theta_err > M_PI) theta_err = theta_err - 2 * M_PI;
-    while (theta_err < -M_PI) theta_err = 2 * M_PI + theta_err;
-    double angular_velocity = theta_err * spin_kp_;
-    
-    if (angular_velocity > angular_max_vel_) angular_velocity = angular_max_vel_;
-    if (angular_velocity < -angular_max_vel_) angular_velocity = -angular_max_vel_;
-    velocity_state_.x_ = 0;
-    velocity_state_.theta_ = angular_velocity;
-    Velocity_Publish();
+void PathExecutor::SpinAndDock(RobotState local_goal, bool opt) {
+    ROS_INFO_STREAM("[Path Executor]: in spin and dock");
+    if (opt == 0) {
+        CalculateSteer(local_goal);
+        if (relative_drive_straight_ == -1) {
+            relative_steer_angle_ = M_PI - relative_steer_angle_;
+        }
+        if (relative_steer_angle_ > deviate_margin_rad_) {
+            double angular_velocity = relative_steer_angle_ * spin_kp_ * relative_is_couterclockwise_ * relative_drive_straight_;
+            if (angular_velocity > angular_max_vel_) angular_velocity = angular_max_vel_;
+            if (angular_velocity < -angular_max_vel_) angular_velocity = -angular_max_vel_;
+            velocity_state_.x_ = 0;
+            velocity_state_.theta_ = angular_velocity;
+            Velocity_Publish();
+        }
+        else {
+            Switch_Mode(MODE::TRACKING);
+            velocity_state_.x_ = 0;
+            velocity_state_.theta_ = 0;
+            Velocity_Publish();
+            t_bef_ = ros::Time::now();
+        }
+    }
+    else {
+        double theta_err = local_goal.theta_ - cur_pose_.theta_;
+        while (theta_err > M_PI) theta_err = theta_err - 2 * M_PI;
+        while (theta_err < -M_PI) theta_err = theta_err + 2 * M_PI;
+        double angular_velocity = theta_err * spin_kp_;
+        if (angular_velocity > angular_max_vel_) angular_velocity = angular_max_vel_;
+        if (angular_velocity < -angular_max_vel_) angular_velocity = -angular_max_vel_;
+        velocity_state_.x_ = 0;
+        velocity_state_.theta_ = angular_velocity;
+        Velocity_Publish();
+    }
 }
 
+void PathExecutor::CalculateSteer(RobotState local_goal) {
+    relative_distance_ = sqrt(pow(local_goal.x_-cur_pose_.x_,2)+pow(local_goal.y_-cur_pose_.y_,2));
+    // ROS_INFO_STREAM("path executor: relative_distance: " << relative_distance_);
+ 
+    // a*b=|a||b|*cos(theta) ==> theta = acos(a*b/|a||b|)
+    relative_steer_angle_ = acos((cos(cur_pose_.theta_)*(local_goal.x_ - cur_pose_.x_)+sin(cur_pose_.theta_)*(local_goal.y_ - cur_pose_.y_))/(sqrt(pow(local_goal.x_-cur_pose_.x_,2)+pow(local_goal.y_-cur_pose_.y_,2))));
+
+    // sin(theta)= a X b to define whether the clockwise is <=0 clockwise ; >0 counterclockwise 
+    if((cos(cur_pose_.theta_)*(local_goal.y_ - cur_pose_.y_)-sin(cur_pose_.theta_)*(local_goal.x_ - cur_pose_.x_))<=0)
+        relative_is_couterclockwise_ = -1;
+    else
+        relative_is_couterclockwise_ = 1;
+
+     
+    // if angle > 90 degree , change to reverse driving
+    // ROS_INFO_STREAM("path executor: relative_steer_angle: " << relative_steer_angle);
+    if(relative_steer_angle_ <= M_PI/2) {
+        if (relative_steer_angle_ <= straight_margin_rad_) {
+            relative_radius_ = -1;
+        }
+        else {
+            relative_radius_ = relative_distance_/(2*(sin(relative_steer_angle_)));
+        }
+        relative_drive_straight_ = 1;
+    }
+    else {
+        if(can_reverse_drive_== 0) {
+            if (relative_steer_angle_-M_PI/2 <= straight_margin_rad_) {
+                relative_radius_ = -1;
+            }
+            else {
+                relative_radius_ = relative_distance_/(2*(sin(relative_steer_angle_-M_PI/2)));
+            }
+            relative_drive_straight_ = 1;
+        }else{
+            if (M_PI-relative_steer_angle_ <= straight_margin_rad_) {
+                relative_radius_ = -1;
+            }
+            else {
+                relative_radius_ = relative_distance_/(2*(sin(M_PI-relative_steer_angle_)));
+            }
+            relative_drive_straight_ = -1;
+        }
+    }
+    // ROS_INFO_STREAM("path executor: relative_radius: " << relative_radius << " " << relative_steer_angle);
+}
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "PathExecutor");

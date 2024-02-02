@@ -90,7 +90,7 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
 
     // Replan count
     cnt_replan++;
-    if(cnt_replan % 20 == 1){
+    if(cnt_replan % 10 == 1){
         begin_point.x = pose.x;
         begin_point.y = pose.y;
     }
@@ -106,12 +106,8 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
         else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
     }
     prev_path = responce.plan.poses; // Record the path
-    
-    // Prevent path roll back
-    for(int i_path=1; i_path<responce.plan.poses.size(); i_path++){
-        if((fabs(responce.plan.poses[i_path].pose.position.x - pose.x) <= 0.3) && (fabs(responce.plan.poses[i_path].pose.position.y - pose.y) <= 0.3))    cnt_replan = 0;
-    }
 
+    ROS_FATAL("cnt_replan -> %d", cnt_replan);
     return true;
 }
 //------------------------------------------------- Main Function ------------------------------------------------
@@ -506,6 +502,10 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                         // ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
                         Final_path_responce.push_back(Final_path_buffer);
                     }
+                }
+                // Prevent path roll back
+                for(int i_path=1; i_path<final_path.size(); i_path++){
+                    if((fabs(final_path[i_path].x - pose.x) <= 0.03) && (fabs(final_path[i_path].y - pose.y) <= 0.03))    cnt_replan = 0;
                 }
                 path_solving_process = Step::Finishing;
             }        
