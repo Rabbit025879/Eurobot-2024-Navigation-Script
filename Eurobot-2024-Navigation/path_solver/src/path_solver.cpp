@@ -6,6 +6,12 @@
 std::vector<Point>  obs_pose_static;    // Static obstacles from obstacle simulation -> map
 std::vector<Point>  obs_pose_pot;       // Static obstacles from sensors -> pot & plant
 Point  obs_pose_rival;                  // Dynamic obstacles from sensors -> rival
+// Obstacle radius
+double obstacle_size = 0.08;
+double normal_inflation = 0.03;
+double safety_inflation = 0.1;
+double clear_radius = obstacle_size+robot_size+normal_inflation;
+double avoid_radius = obstacle_size+robot_size+safety_inflation;
 // Replan counter
 int cnt_replan = 0;
 // Begin point
@@ -121,12 +127,6 @@ int main(int argc, char** argv){
     std::vector <geometry_msgs::Point32>  rviz_obs;     // Vector of polygon point to publish 
     std::vector <Point> total_obs;                      // Obstacle buffer to get Merge_obstacles
     geometry_msgs::PolygonStamped obs_point;            // Obstacle output for rviz visualization
-    // Radius
-    double obstacle_size = 0.08;
-    double normal_inflation = 0.03;
-    double safety_inflation = 0.1;
-    double clear_radius = obstacle_size+robot_size+normal_inflation;
-    double avoid_radius = obstacle_size+robot_size+safety_inflation;
 
 //----------------------------------------------------- Loop ---------------------------------------------------
     // Rate
@@ -147,6 +147,13 @@ int main(int argc, char** argv){
                 angle = j * 2 * M_PI / N;
                 point32.x = total_obs[i].x+(cos(angle) * avoid_radius);
                 point32.y = total_obs[i].y+(sin(angle) * avoid_radius);
+                // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
+                rviz_obs.push_back(point32);
+            }
+            for (int j = 0; j < N; ++j){
+                angle = j * 2 * M_PI / N;
+                point32.x = total_obs[i].x+(cos(angle) * clear_radius);
+                point32.y = total_obs[i].y+(sin(angle) * clear_radius);
                 // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }
@@ -199,13 +206,6 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     int which_obs = 0;              // Which obstacles we need to avoid 
     int obs_enc = 0;                // How many obstacles we have encountered 
     Point last_obs;                 // Previous obstacles that we ecountered
-   
-    // Radius
-    double obstacle_size = 0.08;
-    double normal_inflation = 0.03;
-    double safety_inflation = 0.1;
-    double clear_radius = obstacle_size+robot_size+normal_inflation;
-    double avoid_radius = obstacle_size+robot_size+safety_inflation;
 
     // Path simulation 
     Point begin_point;                                                      // Simulation begin point, end point will always be the target goal
@@ -228,9 +228,17 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     while(path_solving_process != Step::Finishing){
         // Timeout
         timeout++;
-        if(timeout>=50){
+        if(timeout>=50 && timeout<100){
+            clear_radius = 0.1;
+            avoid_radius = 0.1;
+        }
+        else if(timeout>=100){
             path_solving_process = Step::Finishing;
             ROS_FATAL("Path solving timeout -> Process has stopped !!");
+        }
+        else{
+            clear_radius = obstacle_size+robot_size+normal_inflation;
+            avoid_radius = obstacle_size+robot_size+safety_inflation;
         }
         // Determination of new goal
         if((goal.x != goal_ed.x && goal.y != goal_ed.y)){
@@ -493,7 +501,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                     for(double c=0.0; c<=50; c++){
                         Final_path_buffer.pose.position.x = final_path[p].x+((final_path[p+1].x-final_path[p].x)*(c/50)); 
                         Final_path_buffer.pose.position.y = final_path[p].y+((final_path[p+1].y-final_path[p].y)*(c/50)); 
-                        ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
+                        // ROS_INFO("Path -> (%lf, %lf)", Final_path_buffer.pose.position.x, Final_path_buffer.pose.position.y);
                         Final_path_responce.push_back(Final_path_buffer);
                     }
                 }
