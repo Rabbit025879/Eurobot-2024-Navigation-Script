@@ -16,6 +16,8 @@ double avoid_radius = obstacle_size+robot_size+safety_inflation;
 int cnt_replan = 0;
 // Begin point
 Point begin_point;   // Begin point of the simulation
+// Previous path
+std::vector<geometry_msgs::PoseStamped> prev_path;
 
 //----------------------------------------------- Custom Functions -----------------------------------------------
 // Path Solving Process
@@ -74,6 +76,9 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     Point goal;          // Target goal from service request
     // Robot pose   
     Point pose;          // Start point from service request
+    // Obstacle position
+    std::vector<Point> obs_pose;
+    obs_pose = Merge_obstacles();
     
     ROS_WARN("|------------------------------- Make plan ----------------------------|");
 
@@ -94,13 +99,19 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     // Responce
     responce.plan.header.frame_id = "/robot1/map";
     responce.plan.header.stamp = ros::Time::now();
-    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
-
+    for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
+        if(dis_point_to_point(obs_pose[i_obs], goal) <= clear_radius){
+            responce.plan.poses = prev_path;
+        }
+        else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
+    }
+    prev_path = responce.plan.poses; // Record the path
+    
     // Prevent path roll back
     for(int i_path=1; i_path<responce.plan.poses.size(); i_path++){
         if((fabs(responce.plan.poses[i_path].pose.position.x - pose.x) <= 0.3) && (fabs(responce.plan.poses[i_path].pose.position.y - pose.y) <= 0.3))    cnt_replan = 0;
     }
-    
+
     return true;
 }
 //------------------------------------------------- Main Function ------------------------------------------------
@@ -228,17 +239,9 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     while(path_solving_process != Step::Finishing){
         // Timeout
         timeout++;
-        if(timeout>=50 && timeout<100){
-            clear_radius = 0.1;
-            avoid_radius = 0.1;
-        }
-        else if(timeout>=100){
+        if(timeout>=50){
             path_solving_process = Step::Finishing;
             ROS_FATAL("Path solving timeout -> Process has stopped !!");
-        }
-        else{
-            clear_radius = obstacle_size+robot_size+normal_inflation;
-            avoid_radius = obstacle_size+robot_size+safety_inflation;
         }
         // Determination of new goal
         if((goal.x != goal_ed.x && goal.y != goal_ed.y)){
@@ -427,7 +430,6 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             if(path_solving_process == Step::Planning){
                 ROS_WARN("<---------- Planning ---------->");
                 ROS_INFO("obstacle detected -> (%lf, %lf)", obs_pose[which_obs].x, obs_pose[which_obs].y);
-                
                 ROS_INFO("begin point -> (%lf, %lf)", begin_point.x, begin_point.y);
 
                 goal_line.line_param_insert_pc(goal, obs_pose[which_obs], avoid_radius);
