@@ -13,7 +13,8 @@ double safety_inflation = 0.1;
 double clear_radius = obstacle_size+robot_size+safety_inflation-0.03;
 double avoid_radius = obstacle_size+robot_size+safety_inflation;
 // Replan counter
-int cnt_replan = 0;
+int cnt_replan = 2;
+Point Target_goal;
 // Begin point
 Point begin_point;   // Begin point of the simulation
 // Previous path
@@ -88,9 +89,12 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     pose.x = request.start.pose.position.x;
     pose.y = request.start.pose.position.y;
 
-    // Replan count
+    // Reset frequency devider
+    if((Target_goal.x != goal.x) && (Target_goal.y != goal.y))  cnt_replan = 2;
+
+    // Replan count -> Frequency devider
     cnt_replan++;
-    if(cnt_replan % 20 == 3){
+    if(cnt_replan % 20 == 2){
         begin_point.x = pose.x;
         begin_point.y = pose.y;
     }
@@ -99,18 +103,13 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     // Responce
     responce.plan.header.frame_id = "/robot1/map";
     responce.plan.header.stamp = ros::Time::now();
-    if(obs_pose.size()>0){
-        for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
-            if(dis_point_to_point(obs_pose[i_obs], goal) <= clear_radius){
-                responce.plan.poses = prev_path;
-            }
-            else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
-        }
-        prev_path = responce.plan.poses; // Record the path
-    }
-    else    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
+    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
 
     ROS_FATAL("cnt_replan -> %d", cnt_replan);
+
+    //Record goal
+    Target_goal = goal;
+
     return true;
 }
 //------------------------------------------------- Main Function ------------------------------------------------
@@ -238,9 +237,19 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     while(path_solving_process != Step::Finishing){
         // Timeout
         timeout++;
-        if(timeout>=50){
+        if(timeout>=50 && timeout<100){
+            clear_radius = obstacle_size+robot_size;
+            avoid_radius = obstacle_size+robot_size;
+            new_goal = 1;
+            path_solving_process = Step::Checking;
+        }
+        else if(timeout>=100){
             path_solving_process = Step::Finishing;
             ROS_FATAL("Path solving timeout -> Process has stopped !!");
+        }
+        else{
+            clear_radius = obstacle_size+robot_size+safety_inflation-0.03;
+            avoid_radius = obstacle_size+robot_size+safety_inflation;
         }
         // Determination of new goal
         if((goal.x != goal_ed.x && goal.y != goal_ed.y)){
@@ -516,6 +525,14 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     }
     // Reset timeout
     timeout = 0;
+    // Stablize the path in case of the robot went in to the obstacle inflations by accident 
+    for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
+        if(dis_point_to_point(obs_pose[i_obs], pose) <= safety_inflation){
+            Final_path_responce = prev_path;
+            for(int i;i<10000000;i++)    ROS_WARN("potential collision may occur !!");
+        }
+    }
+    prev_path = Final_path_responce; // Record the path
     // Return Path responce
     return Final_path_responce;
 }
