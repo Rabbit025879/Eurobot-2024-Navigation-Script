@@ -19,7 +19,6 @@
 #include <vector>
 #include <algorithm>
 
-#define PI 3.14159
 #define robot_size 0.14
 #define nodes_cost_param 1.2
 
