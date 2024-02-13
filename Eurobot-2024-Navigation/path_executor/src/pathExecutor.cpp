@@ -294,7 +294,7 @@ bool PathExecutor::Get_Global_Path(RobotState cur_pos, RobotState goal_pos) {
 void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
     // ROS_INFO_STREAM("[Path Executor]: in timercallback");
     if (working_mode_ == MODE::TRACKING) {
-        if (is_XY_Reached(cur_pose_, goal_pose_) && is_Theta_Reached(cur_pose_, goal_pose_) && !is_goal_blocked_) {
+        if (is_XY_Reached(cur_pose_, goal_pose_)  && !is_goal_blocked_) {
             ROS_INFO_STREAM("[Path Executor]: GOAL REACHED !" << fabs(goal_pose_.y_ - cur_pose_.y_));
             ROS_INFO_STREAM("[pathExecutor]" << " RUNTIME " << (ros::Time::now() - run_time_).toSec() << "s");
             Switch_Mode(MODE::IDLE);
@@ -355,10 +355,10 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
         SpinAndDock(local_goal, 0);
     }
     else if (working_mode_ == MODE::END_SPIN) {
-        if (is_Theta_Reached(cur_pose_, goal_pose_)) {
+        // if (is_Theta_Reached(cur_pose_, goal_pose_)) {
             Switch_Mode(MODE::TRACKING);
-        }
-        SpinAndDock(goal_pose_, 1);
+        // }
+        // SpinAndDock(goal_pose_, 1);
     }
     else {
         ROS_ERROR("[Path Executor]: WRONG MODE!");
