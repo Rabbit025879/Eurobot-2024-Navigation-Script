@@ -693,10 +693,10 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
     Line_tan::tan.II = ( (delta_x*delta_y) - sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(delta_r,2)) * (pow(delta_y,2)-pow(delta_r,2)) ) ) ) / (pow(delta_x,2)-pow(delta_r,2));
     Line_tan::tan.III = ( (delta_x*delta_y) + sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(sigma_r,2)) * (pow(delta_y,2)-pow(sigma_r,2)) ) ) ) / (pow(delta_x,2)-pow(sigma_r,2));
     Line_tan::tan.IIII = ( (delta_x*delta_y) - sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(sigma_r,2)) * (pow(delta_y,2)-pow(sigma_r,2)) ) ) ) / (pow(delta_x,2)-pow(sigma_r,2));
-    ROS_INFO("tan.I -> %lf", Line_tan::tan.I);
-    ROS_INFO("tan.II -> %lf", Line_tan::tan.II);
-    ROS_INFO("tan.III -> %lf", Line_tan::tan.III);
-    ROS_INFO("tan.IIII -> %lf", Line_tan::tan.IIII);
+    // ROS_INFO("tan.I -> %lf", Line_tan::tan.I);
+    // ROS_INFO("tan.II -> %lf", Line_tan::tan.II);
+    // ROS_INFO("tan.III -> %lf", Line_tan::tan.III);
+    // ROS_INFO("tan.IIII -> %lf", Line_tan::tan.IIII);
     // ax+by+c = 0
     Line_tan::a1 = Line_tan::tan.I;
     Line_tan::b1 = -1;
@@ -953,7 +953,7 @@ std::vector<Point> sort_obs_with_robot_dis(std::vector<double> dis, std::vector<
     if(n == 1)  return_value = pose;
     if(n == 2)  return_value = size;
 
-    for(int i = 0; i < return_value.size(); i++)    ROS_WARN("pose/size -> (%lf,%lf)", return_value[i].x, return_value[i].y);
+    // for(int i = 0; i < return_value.size(); i++)    ROS_WARN("pose/size -> (%lf,%lf)", return_value[i].x, return_value[i].y);
 
     return(return_value);
 }
