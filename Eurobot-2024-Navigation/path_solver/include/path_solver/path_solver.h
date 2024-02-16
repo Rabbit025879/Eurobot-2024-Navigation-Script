@@ -40,6 +40,7 @@ struct Slope{
     double I = 0.0;
     double II = 0.0;
     double III = 0.0;
+    double IIII = 0.0;
 };
 
 //Given a point outside of the circle, find the tangent line
@@ -48,7 +49,7 @@ class Line_tan{
         //Set up the line - PC (PC stands for point - circle)
         void line_param_insert_pc(Point point_on_line, Point point_outside, double radius);
         //Set up the line - CC (CC stands for circle - circle)
-        void line_param_insert_cc(Point obs1, Point obs2, double radius);
+        void line_param_insert_cc(Point obs1, Point obs2, double radius1, double radius2);
         //This function has no connection to the class, it is just a function to find intersections, it won't change any parameters !! 
         // 2 lines for t & 2 lines for u
         Point line_intersection_22(Line_tan t, Line_tan u, int n);

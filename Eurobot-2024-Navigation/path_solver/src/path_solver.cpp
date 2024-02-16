@@ -7,11 +7,12 @@ std::vector<Point>  obs_pose_static;    // Static obstacles from obstacle simula
 std::vector<Point>  obs_pose_pot;       // Static obstacles from sensors -> pot & plant
 Point  obs_pose_rival;                  // Dynamic obstacles from sensors -> rival
 // Obstacle radius
-double obstacle_size = 0.08;
+std::vector<double> obs_size_static = {0.08};
+std::vector<double> obs_size_pot = {0.03};
+double obs_size_rival = 0.14;
+// Obstacle inflations
 double normal_inflation = 0.03;
 double safety_inflation = 0.1;
-double clear_radius = obstacle_size+robot_size+normal_inflation;
-double avoid_radius = obstacle_size+robot_size+safety_inflation;
 // Replan counter
 int cnt_replan = 2;
 Point Target_goal;
@@ -22,9 +23,9 @@ std::vector<geometry_msgs::PoseStamped> prev_path;
 
 //----------------------------------------------- Custom Functions -----------------------------------------------
 // Path Solving Process
-std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, Point pose, Point goal, std::vector<Point> obs_pose);
+std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, Point pose, Point goal, std::vector<Point> obs_pose, std::vector<Point> obs_size);
 // Merge all types of obstacles
-std::vector<Point> Merge_obstacles();
+std::vector<Point> Merge_obstacles(int n);
 // Debug function
 void DEBUG(double data, int i);
 // Calculate point to point distance
@@ -36,7 +37,7 @@ Point Point_convert(double x, double y);
 // Bubble sort for array
 void sort_seq_with_path_dis(double master[2], double slave[2]);
 // Bubble sort for vector
-std::vector<Point> sort_obs_with_robot_dis(std::vector<double> master, std::vector<Point> slave);
+std::vector<Point> sort_obs_with_robot_dis(std::vector<double> dis, std::vector<Point> pose, std::vector<Point> size, int n);
 //Bubble sort for cost
 std::vector<std::vector<Point>> sort_path(std::vector<double> cost, std::vector<std::vector<Point>> multipath);
 // Intersection filters
@@ -47,28 +48,39 @@ Point Intersection_filter_14(Point a, Point b, Point c, Point d, int rank, Point
 
 // Get obstacle position for simulation
 void getobs_static(const geometry_msgs::PoseArray& obs_detector_static){
-    int i = 0;
+    double size = 0.08;
     obs_pose_static.clear();
     obs_pose_static.reserve(obs_detector_static.poses.size());
-    for(i=0; i<obs_detector_static.poses.size(); i++){
-        obs_pose_static.push_back(Point_convert(obs_detector_static.poses[i].position.x, obs_detector_static.poses[i].position.y));
+    obs_size_static.clear();
+    obs_size_static.reserve(obs_detector_static.poses.size());
+    for(int i_obs = 0; i_obs < obs_detector_static.poses.size(); i_obs++){
+        obs_pose_static.push_back(Point_convert(obs_detector_static.poses[i_obs].position.x, obs_detector_static.poses[i_obs].position.y));
+        // obs_size_static.push_back(size);
+        obs_size_static[0] = 0.1;
+        obs_size_static[1] = 0.03;
         // ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
 // Get static obstacle position for real
 void getobs_pot(const obstacle_detector::Obstacles& obs_detector_pot){
-    int i = 0;
     obs_pose_pot.clear();
     obs_pose_pot.reserve(obs_detector_pot.circles.size());
-    for(i=0; i<obs_detector_pot.circles.size(); i++){
-        obs_pose_pot.push_back(Point_convert(obs_detector_pot.circles[i].center.x, obs_detector_pot.circles[i].center.y));
+    obs_size_pot.clear();
+    obs_size_pot.reserve(obs_detector_pot.circles.size());
+    for(int i_obs = 0; i_obs < obs_detector_pot.circles.size(); i_obs++){
+        obs_pose_pot.push_back(Point_convert(obs_detector_pot.circles[i_obs].center.x, obs_detector_pot.circles[i_obs].center.y));
+        obs_size_pot.push_back(obs_detector_pot.circles[i_obs].true_radius);
         // ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
 // Get rival obstacle position for real
 // void getobs_rival(const obstacle_detector::Obstacles& obs_detector_rival){
-//     obs_pose_rival.x = obs_detector_rival;
-//     obs_pose_rival.y = obs_detector_rival;
+//     if(obs_detector_rival.circles.size() == 1){
+//         obs_pose_rival.x = obs_detector_rival.circles[0].center.x;
+//         obs_pose_rival.y = obs_detector_rival.circles[0].center.y;
+//         obs_size_rival = obs_detector_rival.circles[0].true_radius;
+//     }
+//     else    ROS_FATAL("Lidar found obstacles other than rival -> please confirm the error");
 // }
 
 //------------------------------------------------- Service Callback ----------------------------------------------
@@ -80,7 +92,9 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     Point pose;          // Start point from service request
     // Obstacle position
     std::vector<Point> obs_pose;
-    obs_pose = Merge_obstacles();
+    std::vector<Point> obs_size;
+    obs_pose = Merge_obstacles(1);
+    obs_size = Merge_obstacles(2);
     // Divide freq for total replan
     int divide_freq = 20;
     
@@ -112,7 +126,7 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     // Responce
     responce.plan.header.frame_id = "/robot1/map";
     responce.plan.header.stamp = ros::Time::now();
-    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, Merge_obstacles());
+    responce.plan.poses = Path_Solving_Process(begin_point, pose, goal, obs_pose, obs_size);
 
     // ROS_FATAL("cnt_replan -> %d", cnt_replan);
 
@@ -144,6 +158,7 @@ int main(int argc, char** argv){
     geometry_msgs::Point32  point32;                    // Point if polygon to push back
     std::vector <geometry_msgs::Point32>  rviz_obs;     // Vector of polygon point to publish 
     std::vector <Point> total_obs;                      // Obstacle buffer to get Merge_obstacles
+    std::vector <Point> total_size;                     // Obstacle buffer to get Merge_obstacles
     geometry_msgs::PolygonStamped obs_point;            // Obstacle output for rviz visualization
 
 //----------------------------------------------------- Loop ---------------------------------------------------
@@ -152,26 +167,27 @@ int main(int argc, char** argv){
 
     while(ros::ok()){
         //RVIZ visualization for obstacles
-        total_obs = Merge_obstacles();
-        for(int i=0; i<total_obs.size(); i++){
+        total_obs = Merge_obstacles(1);
+        total_size = Merge_obstacles(2);
+        for(int i = 0; i < total_obs.size(); i++){
             for (int j = 0; j < N; ++j){
                 angle = j * 2 * M_PI / N;
-                point32.x = total_obs[i].x+(cos(angle) * obstacle_size);
-                point32.y = total_obs[i].y+(sin(angle) * obstacle_size);
+                point32.x = total_obs[i].x+(cos(angle) * total_size[i].x);
+                point32.y = total_obs[i].y+(sin(angle) * total_size[i].x);
                 // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }
             for (int j = 0; j < N; ++j){
                 angle = j * 2 * M_PI / N;
-                point32.x = total_obs[i].x+(cos(angle) * avoid_radius);
-                point32.y = total_obs[i].y+(sin(angle) * avoid_radius);
+                point32.x = total_obs[i].x+(cos(angle) * (total_size[i].x+robot_size+safety_inflation));
+                point32.y = total_obs[i].y+(sin(angle) * (total_size[i].x+robot_size+safety_inflation));
                 // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }
             for (int j = 0; j < N; ++j){
                 angle = j * 2 * M_PI / N;
-                point32.x = total_obs[i].x+(cos(angle) * clear_radius);
-                point32.y = total_obs[i].y+(sin(angle) * clear_radius);
+                point32.x = total_obs[i].x+(cos(angle) * (total_size[i].x+robot_size+normal_inflation));
+                point32.y = total_obs[i].y+(sin(angle) * (total_size[i].x+robot_size+normal_inflation));
                 // ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }
@@ -194,7 +210,7 @@ int main(int argc, char** argv){
 
 //---------------------------------------------------------------------------- Functions --------------------------------------------------------------------------------
 // Path Solving Process
-std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, Point pose, Point goal, std::vector<Point> obs_pose){
+std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, Point pose, Point goal, std::vector<Point> obs_pose, std::vector<Point> obs_size){
 //----------------------------------------------------- Lines -----------------------------------------------------
     Line_tan robot_line;    // The tangent line of robot and obstacle
     Line_tan goal_line;     // The tangent line of goal and obstacle    
@@ -220,10 +236,11 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     std::vector<geometry_msgs::PoseStamped> Final_path_responce;    // Path output for service respond
 
     // Obstacles
-    int i_obs = 0;                  // Counter of obstacles 
-    int which_obs = 0;              // Which obstacles we need to avoid 
-    int obs_enc = 0;                // How many obstacles we have encountered 
-    Point last_obs;                 // Previous obstacles that we ecountered
+    int i_obs = 0;                          // Counter of obstacles 
+    int which_obs = 0;                      // Which obstacles we need to avoid 
+    int obs_enc = 0;                        // How many obstacles we have encountered 
+    Point last_obs_pose;                    // Previous obstacle that we ecountered
+    double last_obs_avoid_radius;           // Avoid radius of the previous obstacle
 
     // Path simulation 
     Point begin_point;                                                      // Simulation begin point, end point will always be the target goal
@@ -249,8 +266,10 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
         // Timeout
         timeout++;
         if(timeout>=50 && timeout<100){
-            clear_radius = obstacle_size+robot_size;
-            avoid_radius = obstacle_size+robot_size;
+            for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
+                normal_inflation = 0.0;
+                safety_inflation = 0.0;
+            }
             reset_process = true;
         }
         else if(timeout>=100){
@@ -258,8 +277,10 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             ROS_FATAL("Path solving timeout -> Process has stopped !!");
         }
         else{
-            clear_radius = obstacle_size+robot_size+normal_inflation;
-            avoid_radius = obstacle_size+robot_size+safety_inflation;
+            for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
+                normal_inflation = 0.03;
+                safety_inflation = 0.1;
+            }
         }
         // Determination of new goal
         if((goal.x != goal_ed.x && goal.y != goal_ed.y) || reset_process){
@@ -272,7 +293,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             else    new_goal = 1;
             if(obs_pose.size()!=0){
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                    if(dis_point_to_point(obs_pose[i_obs], goal) < clear_radius){
+                    if(dis_point_to_point(obs_pose[i_obs], goal) < (obs_size[i_obs].x+robot_size+normal_inflation)){
                         new_goal = 0;
                         ROS_ERROR("!---------------- Unvalid Goal ----------------!");
                         break;
@@ -308,9 +329,17 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             if(path_solving_process == Step::Checking){
                 // Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
                 for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                    if(dis_point_to_point(obs_pose[i_obs], pose) <= avoid_radius){
-                        Final_path_responce = prev_path;
-                        path_solving_process = Step::Finishing;
+                    if(dis_point_to_point(obs_pose[i_obs], pose) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
+                        if(!prev_path.empty()){
+                            Final_path_responce = prev_path;
+                            path_solving_process = Step::Finishing;
+                        }
+                        else{
+                            for(int i_size = 0; i_size < obs_size.size(); i_size++){
+                                normal_inflation = 0.01;
+                                safety_inflation = 0.01;
+                            }
+                        }
                         ROS_WARN("Potential collision may occur !!");
                     }
                 }
@@ -321,8 +350,9 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                 // First, we sort the obstacles by its distance with the begin point      
                 dis_obs_to_robot.clear();              
                 dis_obs_to_robot.reserve(obs_pose.size());
-                for(i_obs=0; i_obs<obs_pose.size(); i_obs++)  dis_obs_to_robot.push_back(dis_point_to_point(begin_point, obs_pose[i_obs]));
-                obs_pose = sort_obs_with_robot_dis(dis_obs_to_robot, obs_pose);                  
+                for(i_obs = 0; i_obs < obs_pose.size(); i_obs++)  dis_obs_to_robot.push_back(dis_point_to_point(begin_point, obs_pose[i_obs]));
+                obs_pose = sort_obs_with_robot_dis(dis_obs_to_robot, obs_pose, obs_size, 1);  
+                obs_size = sort_obs_with_robot_dis(dis_obs_to_robot, obs_pose, obs_size, 2);              
                 // Second, we culculate the distance of the obstacles and robot path(straight to goal) 
                 dis_obs_to_path.clear();
                 dis_obs_to_path.reserve(obs_pose.size());
@@ -359,7 +389,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                             else if(obs_pose[i_obs].x < goal.x)   goal_border = -1;
                             else    goal_border = 0;   
                         }
-                        if(dis_obs_to_path[i_obs] >= clear_radius) is_path_clear = true;
+                        if(dis_obs_to_path[i_obs] >= (obs_size[i_obs].x+robot_size+normal_inflation)) is_path_clear = true;
                         else{
                             // Border consideration
                             if(goal.x >= pose.x && goal.y >= pose.y){
@@ -425,8 +455,8 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                             if(obs_enc >= 2){
                                 ROS_INFO("|----------------- Replacing Process Started -----------------|");
                                 // Calculate the tangent line of the two obstacles(which_obs -> old data, i_obs -> new data)
-                                obs_line.line_param_insert_cc(last_obs, obs_pose[i_obs], avoid_radius);
-                                robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs, avoid_radius);
+                                obs_line.line_param_insert_cc(last_obs_pose, obs_pose[i_obs], last_obs_avoid_radius, (obs_size[i_obs].x+robot_size+safety_inflation));
+                                robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs_pose, last_obs_avoid_radius);
                                 // Find the intersection of obs_tan & robot_tan
                                 intersection_1 = obs_line.line_intersection_14(robot_line, obs_line, 11, path_point.back());   //robot line 1 or 2 -> obs line 1
                                 intersection_2 = obs_line.line_intersection_14(robot_line, obs_line, 12, path_point.back());   //robot line 1 or 2 -> obs line 2
@@ -443,9 +473,10 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                                 ROS_INFO("|----------------- Replacing Process Finished -----------------|");
                             }
 
-                            last_obs = obs_pose[i_obs];                         // Record the last obstacle we try to avoid
-                            which_obs = i_obs;                                  // Record which obstacle we try to avoid
-                            path_solving_process = Step::Planning;              // Go on to the next process
+                            last_obs_pose = obs_pose[i_obs];                                                // Record the last obstacle we try to avoid
+                            last_obs_avoid_radius = (obs_size[i_obs].x+robot_size+safety_inflation);        // Record the avoid radius of the last obstacle     
+                            which_obs = i_obs;                                                              // Record which obstacle we try to avoid
+                            path_solving_process = Step::Planning;                                          // Go on to the next process
                             // ROS_INFO("%ld", binary.size());
                             break;
                         }
@@ -458,8 +489,8 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                 // ROS_INFO("obstacle detected -> (%lf, %lf)", obs_pose[which_obs].x, obs_pose[which_obs].y);
                 // ROS_INFO("begin point -> (%lf, %lf)", begin_point.x, begin_point.y);
 
-                goal_line.line_param_insert_pc(goal, obs_pose[which_obs], avoid_radius);
-                robot_line.line_param_insert_pc(begin_point, last_obs, avoid_radius);
+                goal_line.line_param_insert_pc(goal, obs_pose[which_obs], (obs_size[which_obs].x+robot_size+safety_inflation));
+                robot_line.line_param_insert_pc(begin_point, obs_pose[which_obs], (obs_size[which_obs].x+robot_size+safety_inflation));
 
                 intersection_1 = robot_line.line_intersection_22(robot_line, goal_line, 11);   // Robot line 1 -> Goal line 1
                 intersection_2 = robot_line.line_intersection_22(robot_line, goal_line, 12);   // Robot line 1 -> Goal line 2
@@ -503,7 +534,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                         }
                         // Avoid path went into obstacles
                         for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-                            if(dis_point_to_point(multipath[m][s], obs_pose[i_obs]) <= avoid_radius)    cost_buffer += 6;
+                            if(dis_point_to_point(multipath[m][s], obs_pose[i_obs]) <= (obs_size[i_obs].x+robot_size+safety_inflation))    cost_buffer += 6;
                         }
                         // Avoid path went outside the map
                         if(multipath[m][s].x < 0+robot_size || multipath[m][s].x > 3-robot_size || multipath[m][s].y < 0+robot_size || multipath[m][s].y > 2-robot_size)  cost_buffer += 666;
@@ -571,18 +602,36 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
     // Return Path responce
     return Final_path_responce;
 }
-// Merge obstacles
-std::vector<Point> Merge_obstacles(){
+// Merge obstacles -> 1 for pose, 2 for size
+std::vector<Point> Merge_obstacles(int n){
     // Obstacles
-    std::vector<Point>  obs_pose;   // The position of Obstacles 
+    std::vector<Point>  obs_pose;       // The pose of obstacles 
+    std::vector<double> obs_size;       // The size of obstacles
+    std::vector<Point>  return_value;   // The final return value for this function
     // Push in obstacles
-    obs_pose.clear();                                                                          // Clear the vector first
-    obs_pose.reserve(obs_pose_static.size() + obs_pose_pot.size());                            // Reserve memories for the vector
-    for(int S=0; S<obs_pose_static.size(); S++)    obs_pose.push_back(obs_pose_static[S]);     // Push back static obstacles from obstacle simulation                                 
-    for(int P=0; P<obs_pose_pot.size(); P++)   obs_pose.push_back(obs_pose_pot[P]);            // Push back static obstacles from sensors
-    // if(rival_state == Rival_state::Static)  obs_pose.push_back(obs_pose_rival);             // Push back dynamic obstacles from sencors
+    obs_pose.clear();                                                       // Clear the vector first
+    obs_pose.reserve(obs_pose_static.size() + obs_pose_pot.size() + 1);     // Reserve memories for the vector
+    obs_size.clear();                                                       // Clear the vector first
+    obs_size.reserve(obs_pose_static.size() + obs_pose_pot.size() + 1);     // Reserve memories for the vector
+    for(int S = 0; S < obs_pose_static.size(); S++){
+        obs_pose.push_back(obs_pose_static[S]);                             // Push back the pose of static obstacles from obstacle simulation                                 
+        obs_size.push_back(obs_size_static[S]);                             // Push back the size of static obstacles from obstacle simulation
+    }
+    for(int P = 0; P < obs_pose_pot.size(); P++){
+        obs_pose.push_back(obs_pose_pot[P]);                                // Push back the pose of static obstacles from sensors
+        obs_size.push_back(obs_size_pot[P]);                                // Push back the size of static obstacles from sensors
+    }
+    // obs_pose.push_back(obs_pose_rival);                                     // Push back the pose of dynamic obstacle from sencors
+    // obs_pose.push_back(obs_pose_rival);                                     // Push back the size of dynamic obstacle from sencors
 
-    return obs_pose;
+    return_value.clear();
+    return_value.reserve(obs_pose.size());
+    if(n == 1)  return_value = obs_pose;
+    if(n == 2){
+        for(int i_size = 0; i_size < obs_size.size(); i_size++) return_value.push_back(Point_convert(obs_size[i_size], obs_size[i_size]));
+    }
+
+    return return_value;
 }
 // Raw data convert into Point
 Point Point_convert(double x, double y){
@@ -631,34 +680,37 @@ void Line_tan::line_param_insert_pc(Point point_on_line, Point point_outside, do
     // ROS_WARN("1:(%lf,%lf,%lf), 2:(%lf,%lf,%lf)", a1,b1,c1,a2,b2,c2);
  }
 // Insert & calculate the parameters of circle - circle line
-void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius){
+void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, double radius2){
     // ROS_INFO("obs1 -> (%lf, %lf), obs2 -> (%lf, %lf)", obs1.x, obs1.y, obs2.x, obs2.y);
     double delta_x = obs1.x-obs2.x;
     double delta_y = obs1.y-obs2.y;   
+    double delta_r = radius1-radius2;
+    double sigma_r = radius1+radius2; 
     // ROS_INFO("delta -> (%lf, %lf)", delta_x, delta_y);
     //The parameter of the equation of the four tangent line
     //Parameter calculate
-    Line_tan::tan.I = delta_y/delta_x;
-    Line_tan::tan.II = ((2*delta_x*delta_y)+sqrt(pow((2*delta_x*delta_y),2)-4*(pow(delta_x,2)-pow(2*radius,2))*(pow(delta_y,2)-pow(2*radius,2))))/(2*(pow(delta_x,2)-pow(2*radius,2)));
-    Line_tan::tan.III = ((2*delta_x*delta_y)-sqrt(pow((2*delta_x*delta_y),2)-4*(pow(delta_x,2)-pow(2*radius,2))*(pow(delta_y,2)-pow(2*radius,2))))/(2*(pow(delta_x,2)-pow(2*radius,2)));
-    // ROS_INFO("tan.I -> %lf", Line_tan::tan.I);
-    // ROS_INFO("tan.II -> %lf", Line_tan::tan.II);
-    // ROS_INFO("tan.III -> %lf", Line_tan::tan.III);
-    // ROS_INFO("tan.II(sqrt) -> %lf", pow((2*delta_x*delta_y),2)-4*(pow(delta_x,2)-pow(2*radius,2))*(pow(delta_y,2)-pow(2*radius,2)));
-    //ax+by+c = 0
+    Line_tan::tan.I = ( (delta_x*delta_y) + sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(delta_r,2)) * (pow(delta_y,2)-pow(delta_r,2)) ) ) ) / (pow(delta_x,2)-pow(delta_r,2));
+    Line_tan::tan.II = ( (delta_x*delta_y) - sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(delta_r,2)) * (pow(delta_y,2)-pow(delta_r,2)) ) ) ) / (pow(delta_x,2)-pow(delta_r,2));
+    Line_tan::tan.III = ( (delta_x*delta_y) + sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(sigma_r,2)) * (pow(delta_y,2)-pow(sigma_r,2)) ) ) ) / (pow(delta_x,2)-pow(sigma_r,2));
+    Line_tan::tan.IIII = ( (delta_x*delta_y) - sqrt( (pow(delta_x,2)*pow(delta_y,2)) - ( (pow(delta_x,2)-pow(sigma_r,2)) * (pow(delta_y,2)-pow(sigma_r,2)) ) ) ) / (pow(delta_x,2)-pow(sigma_r,2));
+    ROS_INFO("tan.I -> %lf", Line_tan::tan.I);
+    ROS_INFO("tan.II -> %lf", Line_tan::tan.II);
+    ROS_INFO("tan.III -> %lf", Line_tan::tan.III);
+    ROS_INFO("tan.IIII -> %lf", Line_tan::tan.IIII);
+    // ax+by+c = 0
     Line_tan::a1 = Line_tan::tan.I;
     Line_tan::b1 = -1;
-    Line_tan::c1 = (sqrt((a1*a1)+1)*radius)-(a1*obs1.x)+obs1.y;
-    Line_tan::a2 = Line_tan::tan.I;
+    Line_tan::c1 = -(sqrt((a1*a1)+1)*radius1)-(a1*obs1.x)+obs1.y;
+    Line_tan::a2 = Line_tan::tan.II;
     Line_tan::b2 = -1;
-    Line_tan::c2 = -(sqrt((a2*a2)+1)*radius)-(a2*obs1.x)+obs1.y;
-    Line_tan::a3 = Line_tan::tan.II;
+    Line_tan::c2 = (sqrt((a2*a2)+1)*radius1)-(a2*obs1.x)+obs1.y;
+    Line_tan::a3 = Line_tan::tan.III;
     Line_tan::b3 = -1;
-    Line_tan::c3 = -(sqrt((a3*a3)+1)*radius)-(a3*obs1.x)+obs1.y;
-    Line_tan::a4 = Line_tan::tan.III;
+    Line_tan::c3 = -(sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
+    Line_tan::a4 = Line_tan::tan.IIII;
     Line_tan::b4 = -1;
-    Line_tan::c4 = (sqrt((a4*a4)+1)*radius)-(a4*obs1.x)+obs1.y;
-    // ROS_WARN("(c3, c4) -> (%lf, %lf)", c3, c4);
+    Line_tan::c4 = (sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
+    ROS_WARN("(c1, c2, c3, c4) -> (%lf, %lf, %lf, %lf)", c1, c2, c3, c4);
 }
 // Find out the intersections of 2 lines & 2 lines
 Point Line_tan::line_intersection_22(Line_tan t, Line_tan u, int n){
@@ -699,21 +751,21 @@ Point Line_tan::line_intersection_22(Line_tan t, Line_tan u, int n){
     return(intersection);
 }
 // Find out the intersections of 1 line & 4 lines
-Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point comfirm_point){
+Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point confirm_point){
     // ROS_INFO("<-------- Intersection Calculating -------->");
     Point intersection;
-    double delta, delta_x, delta_y, comfirm_1, comfirm_2;
+    double delta, delta_x, delta_y, confirm_1, confirm_2;
 
-    // ROS_WARN("comfirm_point for 2 robot line = (%lf, %lf)", comfirm_point.x, comfirm_point.y);
+    // ROS_WARN("confirm_point for 2 robot line = (%lf, %lf)", confirm_point.x, confirm_point.y);
     // ROS_WARN("intersection_14 -> 1 : (%lf, %lf, %lf)", t.a1, t.b1, t.c1);
     // ROS_WARN("intersection_14 -> 2 : (%lf, %lf, %lf)", t.a2, t.b2, t.c2);   
-    // ROS_WARN("comfirm 1 -> %lf", (t.a1*comfirm_point.x + t.b1*comfirm_point.y + t.c1));
-    // ROS_WARN("comfirm 2 -> %lf", (t.a2*comfirm_point.x + t.b2*comfirm_point.y + t.c2));
+    // ROS_WARN("confirm 1 -> %lf", (t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1));
+    // ROS_WARN("confirm 2 -> %lf", (t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2));
     
-    comfirm_1 = fabs(t.a1*comfirm_point.x + t.b1*comfirm_point.y + t.c1);
-    comfirm_2 = fabs(t.a2*comfirm_point.x + t.b2*comfirm_point.y + t.c2);
+    confirm_1 = fabs(t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1);
+    confirm_2 = fabs(t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2);
 
-    if(comfirm_1 < comfirm_2){
+    if(confirm_1 < confirm_2){
         // ROS_INFO("a1");
         if(n == 11){
             delta = (t.a1*u.b1)-(t.b1*u.a1);
@@ -736,7 +788,7 @@ Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point comfir
             delta_y = -(t.a1*u.c4)+(t.c1*u.a4);
         }
     }
-    else if(comfirm_2 < comfirm_1){
+    else if(confirm_2 < confirm_1){
         // ROS_INFO("a2");
         if(n == 11){
             delta = (t.a2*u.b1)-(t.b2*u.a1);
@@ -768,25 +820,25 @@ Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point comfir
     return(intersection);
 }
 // Find out the intersections of 1 line & 2 lines 
-Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point ,Point goal){
+Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point confirm_point ,Point goal){
     Point intersection;
     Point sol_1;
     Point sol_2;
     double dis_1 = 0.0;
     double dis_2 = 0.0;
-    double delta, delta_x, delta_y, comfirm_1, comfirm_2, comfirm_3, comfirm_4;
-    // ROS_FATAL("comfirm point for 4 obs line -> (%lf, %lf)", comfirm_point.x, comfirm_point.y);
-    // ROS_WARN("comfirm 1 -> %lf", (t.a1*comfirm_point.x + t.b1*comfirm_point.y + t.c1));
-    // ROS_WARN("comfirm 2 -> %lf", (t.a2*comfirm_point.x + t.b2*comfirm_point.y + t.c2));
-    // ROS_WARN("comfirm 3 -> %lf", (t.a3*comfirm_point.x + t.b3*comfirm_point.y + t.c3));
-    // ROS_WARN("comfirm 4 -> %lf", (t.a4*comfirm_point.x + t.b4*comfirm_point.y + t.c4));
+    double delta, delta_x, delta_y, confirm_1, confirm_2, confirm_3, confirm_4;
+    // ROS_FATAL("confirm point for 4 obs line -> (%lf, %lf)", confirm_point.x, confirm_point.y);
+    ROS_WARN("confirm 1 -> %lf", (t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1));
+    ROS_WARN("confirm 2 -> %lf", (t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2));
+    ROS_WARN("confirm 3 -> %lf", (t.a3*confirm_point.x + t.b3*confirm_point.y + t.c3));
+    ROS_WARN("confirm 4 -> %lf", (t.a4*confirm_point.x + t.b4*confirm_point.y + t.c4));
 
-    comfirm_1 = fabs(t.a1*comfirm_point.x + t.b1*comfirm_point.y + t.c1);
-    comfirm_2 = fabs(t.a2*comfirm_point.x + t.b2*comfirm_point.y + t.c2);
-    comfirm_3 = fabs(t.a3*comfirm_point.x + t.b3*comfirm_point.y + t.c3);
-    comfirm_4 = fabs(t.a4*comfirm_point.x + t.b4*comfirm_point.y + t.c4);
+    confirm_1 = fabs(t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1);
+    confirm_2 = fabs(t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2);
+    confirm_3 = fabs(t.a3*confirm_point.x + t.b3*confirm_point.y + t.c3);
+    confirm_4 = fabs(t.a4*confirm_point.x + t.b4*confirm_point.y + t.c4);
 
-    if((comfirm_1 < comfirm_2) && (comfirm_1 < comfirm_3) && (comfirm_1 < comfirm_4)){
+    if((confirm_1 < confirm_2) && (confirm_1 < confirm_3) && (confirm_1 < confirm_4)){
         // ROS_INFO("a1");
         // solution 1
         delta = (t.a1*u.b1)-(t.b1*u.a1);
@@ -801,7 +853,7 @@ Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point
         sol_2.x = delta_x/delta;
         sol_2.y = delta_y/delta;
     }
-    else if((comfirm_2 < comfirm_1) && (comfirm_2 < comfirm_3) && (comfirm_2 < comfirm_4)){
+    else if((confirm_2 < confirm_1) && (confirm_2 < confirm_3) && (confirm_2 < confirm_4)){
         // ROS_INFO("a2");
         // solution 1
         delta = (t.a2*u.b1)-(t.b2*u.a1);
@@ -816,7 +868,7 @@ Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point
         sol_2.x = delta_x/delta;
         sol_2.y = delta_y/delta;
     }
-    else if((comfirm_3 < comfirm_1) && (comfirm_3 < comfirm_2) && (comfirm_3 < comfirm_4)){
+    else if((confirm_3 < confirm_1) && (confirm_3 < confirm_2) && (confirm_3 < confirm_4)){
         // ROS_INFO("a3");
         // solution 1
         delta = (t.a3*u.b1)-(t.b3*u.a1);
@@ -831,7 +883,7 @@ Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point
         sol_2.x = delta_x/delta;
         sol_2.y = delta_y/delta;
     }
-    else if((comfirm_4 < comfirm_1) && (comfirm_4 < comfirm_2) && (comfirm_4 < comfirm_3)){
+    else if((confirm_4 < confirm_1) && (confirm_4 < confirm_2) && (confirm_4 < confirm_3)){
         // ROS_INFO("a4");
         // solution 1
         delta = (t.a4*u.b1)-(t.b4*u.a1);
@@ -848,8 +900,8 @@ Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point comfirm_point
     }
     else    ROS_ERROR("the point is not on the obs_line !!");
     
-    dis_1 = dis_point_to_point(comfirm_point, sol_1) + dis_point_to_point(sol_1, goal);
-    dis_2 = dis_point_to_point(comfirm_point, sol_2) + dis_point_to_point(sol_2, goal);
+    dis_1 = dis_point_to_point(confirm_point, sol_1) + dis_point_to_point(sol_1, goal);
+    dis_2 = dis_point_to_point(confirm_point, sol_2) + dis_point_to_point(sol_2, goal);
 
     if(dis_1 <= dis_2)  intersection = sol_1;
     else if(dis_2 < dis_1)  intersection = sol_2;
@@ -875,25 +927,35 @@ void sort_seq_with_path_dis(double path_dis[4], int sequence[4]){
         }
     }
 }
-// Bubble sort for obstacles with distance between robot & obstacles 
-std::vector<Point> sort_obs_with_robot_dis(std::vector<double> master, std::vector<Point> slave){
+// Bubble sort for the pose & size of obstacles with distance between robot & obstacles -> 1 for pose, 2 for size
+std::vector<Point> sort_obs_with_robot_dis(std::vector<double> dis, std::vector<Point> pose, std::vector<Point> size, int n){
     double buffer = 0.0;
     Point tmp;
+    Point sub;
+    std::vector<Point>  return_value;
 
-    for(int i = 0; i < master.size()-1; i++){
-        for(int j = 0; j < master.size()-1-i; j++){
-            if(master[j] > master[j+1]){
-                buffer = master[j];
-                tmp = slave[j];
-                master[j] = master[j+1];
-                slave[j] = slave[j+1];
-                master[j+1] = buffer;
-                slave[j+1] = tmp;
+    for(int i = 0; i < dis.size()-1; i++){
+        for(int j = 0; j < dis.size()-1-i; j++){
+            if(dis[j] > dis[j+1]){
+                buffer = dis[j];
+                tmp = pose[j];
+                sub = size[j];
+                dis[j] = dis[j+1];
+                pose[j] = pose[j+1];
+                size[j] = size[j+1];
+                dis[j+1] = buffer;
+                pose[j+1] = tmp;
+                size[j+1] = sub;
             }
         }
     }
 
-    return(slave);
+    if(n == 1)  return_value = pose;
+    if(n == 2)  return_value = size;
+
+    for(int i = 0; i < return_value.size(); i++)    ROS_WARN("pose/size -> (%lf,%lf)", return_value[i].x, return_value[i].y);
+
+    return(return_value);
 }
 // Bubble sort for cost
 std::vector<std::vector<Point>> sort_path(std::vector<double> cost, std::vector<std::vector<Point>> multipath){
