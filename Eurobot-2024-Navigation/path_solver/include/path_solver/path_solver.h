@@ -18,6 +18,7 @@
 // std
 #include <vector>
 #include <algorithm>
+#include <string> 
 
 #define robot_size 0.14
 #define nodes_cost_param 1.2
