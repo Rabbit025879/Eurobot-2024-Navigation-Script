@@ -352,21 +352,38 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             if(path_solving_process == Step::Checking){
                 // *Step 1: First, we check if the point-to-point path is clear, if true -> keep on finding the next path, if not -> go to Step 2 & node++
                 ROS_WARN("<---------- Checking ----------->");
-                // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
-                for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-                    // ! recently changed: pose -> begin_point 
-                    if(dis_point_to_point(obs_pose[i_obs], begin_point) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
-                        if(!prev_path.empty()){
-                            Final_path_responce = prev_path;
-                            path_solving_process = Step::Finishing;
-                        }
-                        else{
-                            for(int i_size = 0; i_size < obs_size.size(); i_size++){
-                                normal_inflation = 0.01;
-                                safety_inflation = 0.01;
+                // *Execptions for 0 obstacles -> no need to run path solving process
+                if(obs_pose.size() == 0){
+                    Final_path_responce.push_back(Final_path_buffer);
+                    Final_path_responce.push_back(Final_path_buffer);
+                    Final_path_responce[0].header.frame_id = "/robot1/map";              // *Path frame_id
+                    Final_path_responce[0].header.stamp = ros::Time::now();              // *Path stamp
+                    Final_path_responce[0].pose.position.x = pose.x;
+                    Final_path_responce[0].pose.position.y = pose.y;
+                    Final_path_responce[1].header.frame_id = "/robot1/map";              // *Path frame_id
+                    Final_path_responce[1].header.stamp = ros::Time::now();              // *Path stamp
+                    Final_path_responce[1].pose.position.x = goal.x;
+                    Final_path_responce[1].pose.position.y = goal.y;
+                    ROS_INFO("No obstacles exist");
+                    path_solving_process = Step::Finishing;
+                }
+                else{
+                    // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
+                    for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
+                        // ! recently changed: pose -> begin_point 
+                        if(dis_point_to_point(obs_pose[i_obs], begin_point) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
+                            if(!prev_path.empty()){
+                                Final_path_responce = prev_path;
+                                path_solving_process = Step::Finishing;
                             }
+                            else{
+                                for(int i_size = 0; i_size < obs_size.size(); i_size++){
+                                    normal_inflation = 0.01;
+                                    safety_inflation = 0.01;
+                                }
+                            }
+                            ROS_WARN("Potential collision may occur !!");
                         }
-                        ROS_WARN("Potential collision may occur !!");
                     }
                 }
                 if(path_solving_process == Step::Finishing) break;
@@ -389,142 +406,133 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                 all_clear = 0;
                 
                 // *Third, we determine is there any obstacles on the way & which one we will first encounter(because we have already sort the obstacles)
-                // *Execptions for 0 obstacles -> no need to run path solving process
-                if(obs_pose.size() == 0){
-                    path_point.push_back(goal);
-                    multipath.push_back(path_point);
-                    ROS_INFO("No obstacles exist");
-                    path_solving_process = Step::Selecting;
-                }
-                else{
-                    for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                        // *We shall check from the nearest obstacle
-                        if(goal.x != begin_point.x){
-                            slope_robot_to_goal = (goal.y - begin_point.y)/(goal.x - begin_point.x);
-                            begin_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*begin_point.y+begin_point.x);
-                            goal_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*goal.y+goal.x);
+                for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
+                    // *We shall check from the nearest obstacle
+                    if(goal.x != begin_point.x){
+                        slope_robot_to_goal = (goal.y - begin_point.y)/(goal.x - begin_point.x);
+                        begin_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*begin_point.y+begin_point.x);
+                        goal_border = obs_pose[i_obs].x+slope_robot_to_goal*obs_pose[i_obs].y-(slope_robot_to_goal*goal.y+goal.x);
+                    }
+                    else{
+                        ROS_WARN("border slope is vertical !!");
+                        if(obs_pose[i_obs].x > begin_point.x)    begin_border = 1;
+                        else if(obs_pose[i_obs].x < begin_point.x)   begin_border = -1;
+                        else    begin_border = 0;     
+                        if(obs_pose[i_obs].x > goal.x)    goal_border = 1;
+                        else if(obs_pose[i_obs].x < goal.x)   goal_border = -1;
+                        else    goal_border = 0;   
+                    }
+                    if(dis_obs_to_path[i_obs] >= (obs_size[i_obs].x+robot_size+normal_inflation)) is_path_clear = true;
+                    else{
+                        // *Border consideration
+                        if(goal.x >= begin_point.x && goal.y >= begin_point.y){
+                            if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
+                            else    is_path_clear = true;
                         }
-                        else{
-                            ROS_WARN("border slope is vertical !!");
-                            if(obs_pose[i_obs].x > begin_point.x)    begin_border = 1;
-                            else if(obs_pose[i_obs].x < begin_point.x)   begin_border = -1;
-                            else    begin_border = 0;     
-                            if(obs_pose[i_obs].x > goal.x)    goal_border = 1;
-                            else if(obs_pose[i_obs].x < goal.x)   goal_border = -1;
-                            else    goal_border = 0;   
+                        else if(goal.x <= begin_point.x && goal.y > begin_point.y){
+                            if(begin_border < 0 && goal_border > 0)    is_path_clear = false;
+                            else    is_path_clear = true;
                         }
-                        if(dis_obs_to_path[i_obs] >= (obs_size[i_obs].x+robot_size+normal_inflation)) is_path_clear = true;
-                        else{
-                            // *Border consideration
-                            if(goal.x >= begin_point.x && goal.y >= begin_point.y){
-                                if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
-                                else    is_path_clear = true;
-                            }
-                            else if(goal.x <= begin_point.x && goal.y > begin_point.y){
-                                if(begin_border < 0 && goal_border > 0)    is_path_clear = false;
-                                else    is_path_clear = true;
-                            }
-                            else if(goal.x < begin_point.x && goal.y <= begin_point.y){   
-                                if(begin_border < 0 && goal_border > 0)    is_path_clear = false;
-                                else    is_path_clear = true;
-                            }
-                            else if(goal.x > begin_point.x && goal.y < begin_point.y){
-                                if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
-                                else    is_path_clear = true;                            
-                            }
-                            else    ROS_WARN("Undefined Circumstances");
+                        else if(goal.x < begin_point.x && goal.y <= begin_point.y){   
+                            if(begin_border < 0 && goal_border > 0)    is_path_clear = false;
+                            else    is_path_clear = true;
                         }
-                        // *If the path is clear, it means that the path has been found
-                        if(is_path_clear){
-                            all_clear++;
-                            if(all_clear == obs_pose.size()){
-                                // *Push the end point of the path(goal point) into path_point
-                                path_point.push_back(goal);
-                                // *Push the path_point into multipath
-                                multipath.push_back(path_point);
-                                // *Reset path_point
-                                path_point.clear(); // *Clear the vector
-                                path_point.push_back(pose); // *Initialize the begin point of the path(robot pose)
-                                // *Reset the begin_point for simulation
-                                begin_point = Begin_Point;
-                                // *Try out other branches
-                                binary.back()++;
-                                // *If the level has been fully searched -> back to the last level
-                                for(int i = binary.size()-1; i>0; i--){
-                                    if(binary[i] > 1){
-                                        // *Binary counter of the path carry
-                                        binary.pop_back();  
-                                        binary[i-1]++; 
+                        else if(goal.x > begin_point.x && goal.y < begin_point.y){
+                            if(begin_border > 0 && goal_border < 0)    is_path_clear = false;
+                            else    is_path_clear = true;                            
+                        }
+                        else    ROS_WARN("Undefined Circumstances");
+                    }
+                    // *If the path is clear, it means that the path has been found
+                    if(is_path_clear){
+                        all_clear++;
+                        if(all_clear == obs_pose.size()){
+                            // *Push the end point of the path(goal point) into path_point
+                            path_point.push_back(goal);
+                            // *Push the path_point into multipath
+                            multipath.push_back(path_point);
+                            // *Reset path_point
+                            path_point.clear(); // *Clear the vector
+                            path_point.push_back(pose); // *Initialize the begin point of the path(robot pose)
+                            // *Reset the begin_point for simulation
+                            begin_point = Begin_Point;
+                            // *Try out other branches
+                            binary.back()++;
+                            // *If the level has been fully searched -> back to the last level
+                            for(int i = binary.size()-1; i>0; i--){
+                                if(binary[i] > 1){
+                                    // *Binary counter of the path carry
+                                    binary.pop_back();  
+                                    binary[i-1]++; 
+                                }
+                            }
+                            // *If the tree has been fully searched -> evaluate the path & select the best path
+                            // *If not -> keep searching
+                            if(binary[0]){
+                                path_solving_process = Step::Selecting;
+                                binary.clear();
+                            }
+                            
+                            // *Search from the beginning of the tree
+                            level = 0;
+                            obs_enc = 0;
+
+                            ROS_INFO("|-------------------------- path %ld finished --------------------------|", multipath.size());
+                        }   
+                    }
+                    else{
+                        obs_enc++;
+                        level++;                                            // *Obstacle encountered -> update the binary counter 
+                        if(level > binary.size()-1)   binary.push_back(0);  // *Obstacle encountered -> update the binary counter
+                        // - ROS_WARN("obs_enc -> %d", obs_enc);
+                        // *If more than 2 obstacles -> replace the point with the correct one
+                        if(obs_enc >= 2){
+                            ROS_INFO("|----------------- Replacing Process Started -----------------|");
+                            // *Calculate the tangent line of the two obstacles(which_obs -> old data, i_obs -> new data)
+                            // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
+                            for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
+                                // ! recently changed: pose -> path_point[path_point.size()-2] 
+                                if(dis_point_to_point(obs_pose[i_obs], path_point[path_point.size()-2]) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
+                                    if(!prev_path.empty()){
+                                        Final_path_responce = prev_path;
+                                        path_solving_process = Step::Finishing;
                                     }
-                                }
-                                // *If the tree has been fully searched -> evaluate the path & select the best path
-                                // *If not -> keep searching
-                                if(binary[0]){
-                                    path_solving_process = Step::Selecting;
-                                    binary.clear();
-                                }
-                                
-                                // *Search from the beginning of the tree
-                                level = 0;
-                                obs_enc = 0;
-
-                                ROS_INFO("|-------------------------- path %ld finished --------------------------|", multipath.size());
-                            }   
-                        }
-                        else{
-                            obs_enc++;
-                            level++;                                            // *Obstacle encountered -> update the binary counter 
-                            if(level > binary.size()-1)   binary.push_back(0);  // *Obstacle encountered -> update the binary counter
-                            // - ROS_WARN("obs_enc -> %d", obs_enc);
-                            // *If more than 2 obstacles -> replace the point with the correct one
-                            if(obs_enc >= 2){
-                                ROS_INFO("|----------------- Replacing Process Started -----------------|");
-                                // *Calculate the tangent line of the two obstacles(which_obs -> old data, i_obs -> new data)
-                                // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
-                                for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                                    // ! recently changed: pose -> path_point[path_point.size()-2] 
-                                    if(dis_point_to_point(obs_pose[i_obs], path_point[path_point.size()-2]) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
-                                        if(!prev_path.empty()){
-                                            Final_path_responce = prev_path;
-                                            path_solving_process = Step::Finishing;
+                                    else{
+                                        for(int i_size = 0; i_size < obs_size.size(); i_size++){
+                                            normal_inflation = 0.01;
+                                            safety_inflation = 0.01;
                                         }
-                                        else{
-                                            for(int i_size = 0; i_size < obs_size.size(); i_size++){
-                                                normal_inflation = 0.01;
-                                                safety_inflation = 0.01;
-                                            }
-                                        }
-                                        ROS_WARN("Potential collision may occur !!");
                                     }
+                                    ROS_WARN("Potential collision may occur !!");
                                 }
-                                if(path_solving_process == Step::Finishing) break;  
-                                obs_line.line_param_insert_cc(last_obs_pose, obs_pose[i_obs], last_obs_avoid_radius, (obs_size[i_obs].x+robot_size+safety_inflation));
-                                robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs_pose, last_obs_avoid_radius);
-                                // *Find the intersection of obs_tan & robot_tan
-                                intersection_1 = obs_line.line_intersection_14(robot_line, obs_line, 11, path_point.back());   // *Robot line 1 or 2 -> obs line 1
-                                intersection_2 = obs_line.line_intersection_14(robot_line, obs_line, 12, path_point.back());   // *Robot line 1 or 2 -> obs line 2
-                                intersection_3 = obs_line.line_intersection_14(robot_line, obs_line, 13, path_point.back());   // *Robot line 1 or 2 -> obs line 3
-                                intersection_4 = obs_line.line_intersection_14(robot_line, obs_line, 14, path_point.back());   // *Robot line 1 or 2 -> obs line 4
-                                // *Correct the path_point with the result above
-                                old_point = path_point.back();                                                                          // *Record the last path point which is going to be replaced
-                                path_point.pop_back();                                                                                                                    // *Discard the last point 
-                                path_point.push_back(Intersection_filter_14(intersection_1, intersection_2, intersection_3, intersection_4, binary[level], old_point));   // *Replace the last point
-                                // *Correct the simlulate begin point
-                                begin_point = path_point.back();
-
-                                ROS_INFO("point replace -> (%lf, %lf)", path_point.back().x, path_point.back().y);
-                                ROS_INFO("|----------------- Replacing Process Finished -----------------|");
                             }
+                            if(path_solving_process == Step::Finishing) break;  
+                            obs_line.line_param_insert_cc(last_obs_pose, obs_pose[i_obs], last_obs_avoid_radius, (obs_size[i_obs].x+robot_size+safety_inflation));
+                            robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs_pose, last_obs_avoid_radius);
+                            // *Find the intersection of obs_tan & robot_tan
+                            intersection_1 = obs_line.line_intersection_14(robot_line, obs_line, 11, path_point.back());   // *Robot line 1 or 2 -> obs line 1
+                            intersection_2 = obs_line.line_intersection_14(robot_line, obs_line, 12, path_point.back());   // *Robot line 1 or 2 -> obs line 2
+                            intersection_3 = obs_line.line_intersection_14(robot_line, obs_line, 13, path_point.back());   // *Robot line 1 or 2 -> obs line 3
+                            intersection_4 = obs_line.line_intersection_14(robot_line, obs_line, 14, path_point.back());   // *Robot line 1 or 2 -> obs line 4
+                            // *Correct the path_point with the result above
+                            old_point = path_point.back();                                                                          // *Record the last path point which is going to be replaced
+                            path_point.pop_back();                                                                                                                    // *Discard the last point 
+                            path_point.push_back(Intersection_filter_14(intersection_1, intersection_2, intersection_3, intersection_4, binary[level], old_point));   // *Replace the last point
+                            // *Correct the simlulate begin point
+                            begin_point = path_point.back();
 
-                            last_obs_pose = obs_pose[i_obs];                                                // *Record the last obstacle we try to avoid
-                            last_obs_avoid_radius = (obs_size[i_obs].x+robot_size+safety_inflation);        // *Record the avoid radius of the last obstacle     
-                            which_obs = i_obs;                                                              // *Record which obstacle we try to avoid
-                            path_solving_process = Step::Planning;                                          // *Go on to the next process
-                            // - ROS_INFO("%ld", binary.size());
-                            break;
+                            ROS_INFO("point replace -> (%lf, %lf)", path_point.back().x, path_point.back().y);
+                            ROS_INFO("|----------------- Replacing Process Finished -----------------|");
                         }
-                    }       
-                }
+
+                        last_obs_pose = obs_pose[i_obs];                                                // *Record the last obstacle we try to avoid
+                        last_obs_avoid_radius = (obs_size[i_obs].x+robot_size+safety_inflation);        // *Record the avoid radius of the last obstacle     
+                        which_obs = i_obs;                                                              // *Record which obstacle we try to avoid
+                        path_solving_process = Step::Planning;                                          // *Go on to the next process
+                        // - ROS_INFO("%ld", binary.size());
+                        break;
+                    }
+                }       
             }
             // *Step 2: Then, we find out the tangent line between the obstacle and our robot/goal, find out the turning point, when it's done -> back to step 1
             //------------------------------------------------ Planning ---------------------------------------------
