@@ -12,15 +12,15 @@ replan_frequency_divider: 2
 
 # linear parameters
 linear_max_vel: 0.6
-linear_acceleration: 0.2
-linear_kp: 1.2
+linear_acceleration: 0.4
+linear_kp: 2.0
 linear_brake_distance: 0.3
 dacc_vel: 0.3
 linear_margin: 0.00
 
 # angular parameters
 # angular_max_vel: 0.7
-angular_max_vel: 1
+angular_max_vel: 1.0
 angular_acceleration: 0.8
 angular_kp: 0.3
 angular_brake_distance: 0.1
