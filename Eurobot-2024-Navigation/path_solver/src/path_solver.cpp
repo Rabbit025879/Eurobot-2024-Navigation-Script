@@ -61,9 +61,9 @@ void getobs_static(const geometry_msgs::PoseArray& obs_detector_static){
     obs_size_static.reserve(obs_detector_static.poses.size());
     for(int i_obs = 0; i_obs < obs_detector_static.poses.size(); i_obs++){
         obs_pose_static.push_back(Point_convert(obs_detector_static.poses[i_obs].position.x, obs_detector_static.poses[i_obs].position.y));
-        // obs_size_static.push_back(size);
-        obs_size_static[0] = 0.1;
-        obs_size_static[1] = 0.03;
+        obs_size_static.push_back(size);
+        // obs_size_static[0] = 0.1;
+        // obs_size_static[1] = 0.03;
         // obs_size_static[2] = 0.05;
         // - ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
@@ -308,7 +308,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             // *Static boundaries
             if(!static_boundaries_check(goal)){
                 new_goal = 0;
-                ROS_ERROR("!---------------- Unvalid Goal ----------------!");
+                ROS_ERROR("!---------------- Unvalid Goal -> static boundaries ----------------!");
                 break;
             }
             else    new_goal = 1;
@@ -317,7 +317,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
                     if(dis_point_to_point(obs_pose[i_obs], goal) < (obs_size[i_obs].x+robot_size+normal_inflation)){
                         new_goal = 0;
-                        ROS_ERROR("!---------------- Unvalid Goal ----------------!");
+                        ROS_ERROR("!---------------- Unvalid Goal -> obstacles----------------!");
                         break;
                     } 
                     else    new_goal = 1;

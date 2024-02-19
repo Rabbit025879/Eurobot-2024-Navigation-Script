@@ -90,6 +90,8 @@ void PathExecutor::initialize() {
 
     emergency_stop_sub_=nh_.subscribe("emergency_stop",50,&PathExecutor::Emergency_Stop_Callback,this);
     diff_radius_pub_ = nh_.advertise<std_msgs::Float64>("diff_radius", 1);
+    // goal_reached_pub_ = nh_.advertise<std_msgs::Char>("path_exec_status", 1);
+    // goal_sub_ = nh_.subscribe("path_exec_goal", 50, &PathExecutor::Goal_Callback, this);
     replan_cnt_ = 0;
     cur_path_idx_ = 0;
     has_start_dacc_x_ = 0;
@@ -182,6 +184,11 @@ void PathExecutor::Goal_Callback(const geometry_msgs::PoseStamped::ConstPtr& pos
     qt.getRPY(_, _, yaw);
 
     goal_pose_.theta_ = yaw;
+    if (goal_pose_.x_ == -1 && goal_pose_.y_ == -1) {
+        ROS_INFO("[Path Executor]: Mission Abort!");
+        Switch_Mode(MODE::IDLE);
+        return ;
+    }
     ROS_INFO("Goal received ! (%f, %f, %f)", goal_pose_.x_, goal_pose_.y_, goal_pose_.theta_);
 
     replan_cnt_ = 0;
@@ -283,6 +290,7 @@ bool PathExecutor::Get_Global_Path(RobotState cur_pos, RobotState goal_pos) {
             pose.theta_ = yaw;
             global_path_.push_back(pose);
         }
+        if (global_path_.empty()) return false;
         global_path_ = Orientation_Filter(global_path_);
         return true;
     } else {
@@ -326,7 +334,7 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
         }
         else if (is_XY_Reached(cur_pose_, goal_pose_) && !is_Theta_Reached(cur_pose_, goal_pose_)) {
             Switch_Mode(MODE::END_SPIN);
-                    }
+        }
         else {
             // cur_path_idx_ = Get_Next_Local_Goal();
             RobotState local_goal = Rolling_Window(cur_pose_, global_path_, lookahead_d_); 
@@ -342,7 +350,17 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
                 return;
             }      
         }
-        Get_Global_Path(cur_pose_, goal_pose_);
+        if (!Get_Global_Path(cur_pose_, goal_pose_)) {
+            ROS_WARN_STREAM("[Path Executor]" << __LINE__ << ": Get global path failed");
+            is_goal_blocked_ = true;
+
+            // publish /finishornot
+            goal_reached_.data = 2;
+            goal_reached_pub_.publish(goal_reached_);
+            Switch_Mode(MODE::IDLE);
+            return;
+
+        }
     }
     else if (working_mode_ == MODE::IDLE) {
         velocity_state_.x_ = 0;
@@ -353,10 +371,35 @@ void PathExecutor::Timer_Callback(const ros::TimerEvent& e) {
     else if (working_mode_ == MODE::START_SPIN) {
         RobotState local_goal = Rolling_Window(cur_pose_, global_path_, lookahead_d_);
         SpinAndDock(local_goal, 0);
+        if (!Get_Global_Path(cur_pose_, goal_pose_)) {
+            ROS_WARN_STREAM("[Path Executor]" << __LINE__ << ": Get global path failed");
+            is_goal_blocked_ = true;
+
+            // publish /finishornot
+            goal_reached_.data = 2;
+            goal_reached_pub_.publish(goal_reached_);
+            Switch_Mode(MODE::IDLE);
+            return;
+
+        }
     }
     else if (working_mode_ == MODE::END_SPIN) {
         if (is_Theta_Reached(cur_pose_, goal_pose_)) {
-            Switch_Mode(MODE::TRACKING);
+            ROS_INFO_STREAM("[Path Executor]: GOAL REACHED !" << fabs(goal_pose_.y_ - cur_pose_.y_));
+            ROS_INFO_STREAM("[pathExecutor]" << " RUNTIME " << (ros::Time::now() - run_time_).toSec() << "s");
+            Switch_Mode(MODE::IDLE);
+            velocity_state_.x_ = 0;
+            velocity_state_.y_ = 0;
+            velocity_state_.theta_ = 0;
+            Velocity_Publish();
+
+            is_goal_blocked_ = false;
+            
+            // publish /finishornot
+            goal_reached_.data = 1;
+            goal_reached_pub_.publish(goal_reached_);
+            Switch_Mode(MODE::IDLE);
+            return ;
         }
         SpinAndDock(goal_pose_, 1);
     }
@@ -402,7 +445,7 @@ bool PathExecutor::is_Theta_Reached(RobotState cur_pos, RobotState goal_pos) {
     goal_vec << cos(goal_pos.theta_), sin(goal_pos.theta_);
     theta_err = cur_vec.dot(goal_vec);
 
-    theta_err = fabs(Angle_Mod(goal_pos.theta_ - cur_pos.theta_));
+    theta_err = std::min(fabs(goal_pos.theta_ - cur_pos.theta_), fabs(Angle_Mod(goal_pos.theta_ - cur_pos.theta_)));
     if (fabs(theta_err) < theta_tolerance_) {
         return true;
     } else
@@ -539,6 +582,10 @@ int PathExecutor::Get_Next_Local_Goal() {
 }
 
 RobotState PathExecutor::Rolling_Window(RobotState cur_pos, std::vector<RobotState> path, double L_d) {
+    if (path.empty()) {
+        ROS_WARN_STREAM("pathExecutor Rolling_Window " << __LINE__ << " : path is empty");
+        return cur_pos;
+    }
     int k = 1;
     int last_k = 0;
     int d_k = 0;
@@ -696,6 +743,13 @@ void PathExecutor::Omni_Controller(RobotState local_goal) {
     t_bef_ = t_now_;
 }
 void PathExecutor::Diff_Controller(RobotState local_goal) {
+    if (working_mode_ == MODE::IDLE) {
+        velocity_state_.x_ = 0;
+        velocity_state_.y_ = 0;
+        velocity_state_.theta_ = 0;
+        Velocity_Publish();
+        return;
+    }
         // RobotState local_goal = global_path_[cur_path_idx_];
     double linear_velocity = 0.0;
     double angular_velocity;
@@ -748,8 +802,12 @@ void PathExecutor::Diff_Controller(RobotState local_goal) {
                 angular_velocity = relative_is_couterclockwise_ * linear_velocity/(relative_radius_);
             }
 
-            // if (abs(angular_velocity) > angular_max_vel_)
-            //     angular_velocity = angular_velocity / abs(angular_velocity) * angular_max_vel_ ;
+            // if (cur_pose_.distanceTo(goal_pose_) < angular_brake_distance_ &&  abs(angular_velocity) > angular_max_vel_) {
+            //     double shrink_rate = angular_max_vel_ / abs(angular_velocity);
+            //     angular_velocity = angular_velocity * shrink_rate;
+            //     linear_velocity = linear_velocity * shrink_rate;
+            //     ROS_INFO_STREAM("pathExecutor " << "shirnk_rate:" << shrink_rate);
+            // }
             
             // angu vel depressed by angu acc
             // if(angular_velocity > w_before + angular_acceleration_*dt_){
@@ -831,6 +889,10 @@ double PathExecutor::Extract_Velocity(VELOCITY vel_type, RobotState goal_pos, do
                 output_vel = std::min(linear_max_vel_, last_vel + d_vel);
             }
 
+            // if (output_vel < last_vel - d_vel) {
+            //     output_vel = last_vel - d_vel;
+            // }
+
             // if (xy_err > 0.4 && output_vel < last_vel) {
             //     output_vel = last_vel;
             // }
@@ -875,8 +937,10 @@ void PathExecutor::SpinAndDock(RobotState local_goal, bool opt) {
         if (relative_drive_straight_ == -1) {
             relative_steer_angle_ = M_PI - relative_steer_angle_;
         }
+        // ROS_INFO_STREAM("[Path Executor]: relative_steer_angle_ " << relative_steer_angle_ << " " << deviate_margin_rad_);
         if (relative_steer_angle_ > deviate_margin_rad_) {
             double angular_velocity = relative_steer_angle_ * spin_kp_ * relative_is_couterclockwise_ * relative_drive_straight_;
+            // ROS_INFO_STREAM("[path exec]" << spin_kp_ << " " << relative_is_couterclockwise_ << " " << relative_drive_straight_);
             if (angular_velocity > angular_max_vel_) angular_velocity = angular_max_vel_;
             if (angular_velocity < -angular_max_vel_) angular_velocity = -angular_max_vel_;
             velocity_state_.x_ = 0;
@@ -895,12 +959,22 @@ void PathExecutor::SpinAndDock(RobotState local_goal, bool opt) {
         double theta_err = local_goal.theta_ - cur_pose_.theta_;
         while (theta_err > M_PI) theta_err = theta_err - 2 * M_PI;
         while (theta_err < -M_PI) theta_err = theta_err + 2 * M_PI;
+        // ROS_INFO_STREAM("[Path Executor]: ENDSPIN " << theta_err << " " << (fabs(theta_err) < theta_tolerance_));
+
         double angular_velocity = theta_err * spin_kp_;
+
+        double dt_ = (ros::Time::now() - t_bef_).toSec();
+        double last_angular_vel = velocity_state_.theta_;
+        ROS_INFO_STREAM("pathExec ENDSPIN " << dt_ << " " << last_angular_vel);
+        // if (angular_velocity > std::min(angular_max_vel_, last_angular_vel + angular_acceleration_ * dt_)) angular_velocity = std::min(angular_max_vel_, last_angular_vel + angular_acceleration_ * dt_);
+        // if (angular_velocity < std::max(-angular_max_vel_, last_angular_vel - angular_acceleration_ * dt_)) angular_velocity = std::max(-angular_max_vel_, last_angular_vel - angular_acceleration_ * dt_);
         if (angular_velocity > angular_max_vel_) angular_velocity = angular_max_vel_;
         if (angular_velocity < -angular_max_vel_) angular_velocity = -angular_max_vel_;
+
         velocity_state_.x_ = 0;
         velocity_state_.theta_ = angular_velocity;
         Velocity_Publish();
+        t_bef_ = ros::Time::now();
     }
 }
 

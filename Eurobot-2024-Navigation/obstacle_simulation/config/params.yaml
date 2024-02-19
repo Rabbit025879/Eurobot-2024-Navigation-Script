@@ -7,7 +7,7 @@ update_frequency: 5
 
 obstacles:
   # ** Pots' area 
-  # - {type: sample_camera, motion_type: static, position: "[[1.000, 0.000],[2.000, 0.000],[0.200, 0.6125],[0.200, 1.3875],[3.000, 0.6125],[3.000, 1.3875]]", stdev: 0.00}
+  - {type: sample_camera, motion_type: static, position: "[[1.000, 0.000],[2.000, 0.000],[0.200, 0.6125],[0.200, 1.3875],[3.000, 0.6125],[3.000, 1.3875]]", stdev: 0.00}
   # ** Pots' area -> Special circumstances
   # - {type: sample_camera, motion_type: static, position: "[[1.000, 0.000],[2.000, 0.000],[1.500,0.770],[0.000, 0.6125],[0.000, 1.3875],[3.000, 0.6125],[3.000, 1.3875]]", stdev: 0.00}
   # ** None obstacle
@@ -15,7 +15,7 @@ obstacles:
   # ** One obstacle
   # - {type: sample_camera, motion_type: static, position: "[[1.500, 1.000]]", stdev: 0.00}
   # ** Two obstacles
-  - {type: sample_camera, motion_type: static, position: "[[1.000, 0.600],[1.700, 1.300]]", stdev: 0.00}
+  # - {type: sample_camera, motion_type: static, position: "[[1.000, 0.600],[1.700, 1.300]]", stdev: 0.00}
   # ** Three obstacles
   # - {type: sample_camera, motion_type: static, position: "[[1.000, 0.600],[1.500,1.000],[2.000, 0.600]]", stdev: 0.00}
 
