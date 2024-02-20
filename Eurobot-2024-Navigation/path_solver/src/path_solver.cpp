@@ -74,7 +74,8 @@ void getobs_pot(const obstacle_detector::Obstacles& obs_detector_pot){
     obs_size_pot.reserve(obs_detector_pot.circles.size());
     for(int i_obs = 0; i_obs < obs_detector_pot.circles.size(); i_obs++){
         obs_pose_pot.push_back(Point_convert(obs_detector_pot.circles[i_obs].center.x, obs_detector_pot.circles[i_obs].center.y));
-        obs_size_pot.push_back(obs_detector_pot.circles[i_obs].true_radius);
+        // obs_size_pot.push_back(obs_detector_pot.circles[i_obs].true_radius);
+        obs_size_pot.push_back(0.1);
         // - ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
@@ -101,7 +102,7 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     obs_pose = Merge_obstacles(1);
     obs_size = Merge_obstacles(2);
     // *Divide freq for total replan
-    int divide_freq = 20;
+    int divide_freq = 3;
     
     ROS_WARN("|------------------------------- Make plan ----------------------------|");
 
@@ -119,7 +120,7 @@ bool Make_plan_server(nav_msgs::GetPlan::Request &request, nav_msgs::GetPlan::Re
     // *Replan count -> Frequency divider
     cnt_replan++;
     for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-        if((dis_point_to_point(obs_pose[i_obs], pose)) < 0.3)   divide_freq = 10;
+        if((dis_point_to_point(obs_pose[i_obs], pose)) < 0.3)   divide_freq = 5;
         if((dis_point_to_point(obs_pose[i_obs], pose)) < 0.2)   divide_freq = 3;
     }
     if(cnt_replan % divide_freq == 2){
