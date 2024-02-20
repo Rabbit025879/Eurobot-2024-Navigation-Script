@@ -13,8 +13,7 @@ std::vector<double> obs_size_static = {0.08};
 std::vector<double> obs_size_pot = {0.03};
 double obs_size_rival = 0.14;
 //  *Obstacle inflations
-double normal_inflation = 0.03;
-double safety_inflation = 0.1;
+double safety_inflation = peace_radius;
 //  *Replan counter
 int cnt_replan = 2;
 Point Target_goal;
@@ -61,10 +60,10 @@ void getobs_static(const geometry_msgs::PoseArray& obs_detector_static){
     obs_size_static.reserve(obs_detector_static.poses.size());
     for(int i_obs = 0; i_obs < obs_detector_static.poses.size(); i_obs++){
         obs_pose_static.push_back(Point_convert(obs_detector_static.poses[i_obs].position.x, obs_detector_static.poses[i_obs].position.y));
-        obs_size_static.push_back(size);
-        // obs_size_static[0] = 0.1;
-        // obs_size_static[1] = 0.03;
-        // obs_size_static[2] = 0.05;
+        // obs_size_static.push_back(size+normal_inflation_pot);
+        obs_size_static[0] = 0.1+normal_inflation_pot;
+        obs_size_static[1] = 0.03+normal_inflation_pot;
+        // obs_size_static[2] = 0.05+normal_inflation_pot;
         // - ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
@@ -76,8 +75,7 @@ void getobs_pot(const obstacle_detector::Obstacles& obs_detector_pot){
     obs_size_pot.reserve(obs_detector_pot.circles.size());
     for(int i_obs = 0; i_obs < obs_detector_pot.circles.size(); i_obs++){
         obs_pose_pot.push_back(Point_convert(obs_detector_pot.circles[i_obs].center.x, obs_detector_pot.circles[i_obs].center.y));
-        // obs_size_pot.push_back(obs_detector_pot.circles[i_obs].true_radius);
-        obs_size_pot.push_back(0.1);
+        obs_size_pot.push_back(pot_size+normal_inflation_plant);
         // - ROS_INFO("obs %d : (%lf,%lf)",i, obs_pose[i].x, obs_pose[i].y);
     }
 }
@@ -86,7 +84,7 @@ void getobs_pot(const obstacle_detector::Obstacles& obs_detector_pot){
 //    if(obs_detector_rival.circles.size() == 1){
 //         obs_pose_rival.x = obs_detector_rival.circles[0].center.x;
 //         obs_pose_rival.y = obs_detector_rival.circles[0].center.y;
-//         obs_size_rival = obs_detector_rival.circles[0].true_radius;
+//         obs_size_rival = rival_size+normal_inflation_rival;
 //     }
 //     else    ROS_FATAL("Lidar found obstacles other than rival -> please confirm the error");
 // }
@@ -193,8 +191,15 @@ int main(int argc, char** argv){
             }
             for (int j = 0; j < N; ++j){
                 angle = j * 2 * M_PI / N;
-                point32.x = total_obs[i].x+(cos(angle) * (total_size[i].x+robot_size+normal_inflation));
-                point32.y = total_obs[i].y+(sin(angle) * (total_size[i].x+robot_size+normal_inflation));
+                point32.x = total_obs[i].x+(cos(angle) * (total_size[i].x+robot_size));
+                point32.y = total_obs[i].y+(sin(angle) * (total_size[i].x+robot_size));
+                // - ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
+                rviz_obs.push_back(point32);
+            }
+            for (int j = 0; j < N; ++j){
+                angle = j * 2 * M_PI / N;
+                point32.x = total_obs[i].x+(cos(angle) * (total_size[i].x+robot_size+0.015));
+                point32.y = total_obs[i].y+(sin(angle) * (total_size[i].x+robot_size+0.015));
                 // - ROS_FATAL("obs_rviz -> (%lf, %lf)", point32.x, point32.y);
                 rviz_obs.push_back(point32);
             }
@@ -217,13 +222,13 @@ int main(int argc, char** argv){
 bool static_boundaries_check(Point point){
     bool valid = 1;
     
-    if(point.x < 0+robot_size || point.x > 3-robot_size || point.y < 0+robot_size || point.y > 2-robot_size)  valid = 0;               // *Playground
-    if(point.x > 1.05-robot_size && point.x < 1.95+robot_size && point.y > 1.85-robot_size && point.y < 2+robot_size)   valid = 0;     // *Bugs' area
+    if(point.x < 0+(robot_size+normal_inflation_wall) || point.x > 3-(robot_size+normal_inflation_wall) || point.y < 0+(robot_size+normal_inflation_wall) || point.y > 2-(robot_size+normal_inflation_wall))  valid = 0;               // *Playground
+    if(point.x > 1.05-(robot_size+normal_inflation_wall) && point.x < 1.95+(robot_size+normal_inflation_wall) && point.y > 1.85-(robot_size+normal_inflation_wall) && point.y < 2+(robot_size+normal_inflation_wall))   valid = 0;     // *Bugs' area
     if(team == "Blue"){
-        if(point.x > 2.55-robot_size && point.x < 3+robot_size && point.y > 1.55-robot_size && point.y < 2+robot_size)  valid = 0;     // *Blue team's restricted area
+        if(point.x > 2.55-(robot_size+normal_inflation_wall) && point.x < 3+(robot_size+normal_inflation_wall) && point.y > 1.55-(robot_size+normal_inflation_wall) && point.y < 2+(robot_size+normal_inflation_wall))  valid = 0;     // *Blue team's restricted area
     }
     if(team == "Yellow"){
-        if(point.x > 0-robot_size && point.x < 0.45+robot_size && point.y > 1.55-robot_size && point.y < 2+robot_size)  valid = 0;     // *Yellow team's restricted area
+        if(point.x > 0-(robot_size+normal_inflation_wall) && point.x < 0.45+(robot_size+normal_inflation_wall) && point.y > 1.55-(robot_size+normal_inflation_wall) && point.y < 2+(robot_size+normal_inflation_wall))  valid = 0;     // *Yellow team's restricted area
     }
 
     return valid;
@@ -277,51 +282,60 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
 
     // *Timeout
     int timeout = 0;            // *Timeout if the process is stucked !!
-    bool reset_process = false; // *Reset the process
+    bool reset_process = false; // ! Reset the process -> Doesn't work really well
+    bool pose_in_obs = false;
+    bool goal_in_obs = false;
+    bool switch_once = false;
 
 //----------------------------------------------------- Loop started ------------------------------------------------
     // *Repeat until process finished
     while(path_solving_process != Step::Finishing){
+        // spinOnce
+        ros::spinOnce();
         // *Timeout
         timeout++;
-        if(timeout>=50 && timeout<100){
-            for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-                normal_inflation = 0.0;
-                safety_inflation = 0.0;
-            }
-            reset_process = true;
-        }
-        else if(timeout>=100){
+        if(timeout>=100){
             path_solving_process = Step::Finishing;
             ROS_FATAL("Path solving timeout -> Process has stopped !!");
         }
-        else{
-            for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-                normal_inflation = 0.03;
-                safety_inflation = 0.1;
-            }
+        if(path_solving_process == Step::Finishing) break;
+        // *Inflations
+        // ? If we can't make a valid plan -> consider more aggressive path(shrink inflations)
+        if(goal_in_obs || pose_in_obs){
+            safety_inflation = aggressive_radius;
+            ROS_WARN("Aggressive path !!");
         }
+        else    safety_inflation = peace_radius;
         // *Determination of new goal
         if((goal.x != goal_ed.x && goal.y != goal_ed.y) || reset_process){
             // *Is the goal valid ?
             // *Static boundaries
             if(!static_boundaries_check(goal)){
-                new_goal = 0;
+                path_solving_process = Step::Finishing;
                 ROS_ERROR("!---------------- Unvalid Goal -> static boundaries ----------------!");
-                break;
             }
             else    new_goal = 1;
             // *Obstacles check
-            if(obs_pose.size()!=0){
+            if(obs_pose.size() != 0){
                 for(i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                    if(dis_point_to_point(obs_pose[i_obs], goal) < (obs_size[i_obs].x+robot_size+normal_inflation)){
-                        new_goal = 0;
-                        ROS_ERROR("!---------------- Unvalid Goal -> obstacles----------------!");
+                    if(dis_point_to_point(obs_pose[i_obs], goal) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
+                        if(dis_point_to_point(obs_pose[i_obs], goal) <= (obs_size[i_obs].x+robot_size)){
+                            path_solving_process = Step::Finishing;
+                            ROS_ERROR("!---------------- Unvalid Goal -> obstacles ----------------!");
+                        }
+                        else{
+                            safety_inflation = aggressive_radius;
+                            goal_in_obs = true;
+                            ROS_WARN("Potential collision may occur !!");
+                        } 
                         break;
-                    } 
+                    }
                     else    new_goal = 1;
                 }
             }
+            if(path_solving_process == Step::Finishing) break;
+            // * Reset obs_enc
+            obs_enc = 0;
             // *Record the last goal
             goal_ed.x = goal.x;
             goal_ed.y = goal.y;
@@ -367,22 +381,35 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                     path_solving_process = Step::Finishing;
                 }
                 else{
-                    // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
+                    // ? Guard -> Stablize the path in case of the robot went into the obstacle inflations by accident 
                     for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
                         // ! recently changed: pose -> begin_point 
-                        if(dis_point_to_point(obs_pose[i_obs], begin_point) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
+                        if(dis_point_to_point(obs_pose[i_obs], Begin_Point) <= (obs_size[i_obs].x+robot_size)){
+                            ROS_FATAL("Emergency stopped !!");
+                            ROS_FATAL("Potential crash has happened !!");
+                            path_solving_process = Step::Finishing;
+                        }
+                        else if(dis_point_to_point(obs_pose[i_obs], Begin_Point) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
+                            // ** On the move
                             if(!prev_path.empty()){
                                 Final_path_responce = prev_path;
                                 path_solving_process = Step::Finishing;
                             }
+                            // ** Prepare to move
                             else{
-                                for(int i_size = 0; i_size < obs_size.size(); i_size++){
-                                    normal_inflation = 0.01;
-                                    safety_inflation = 0.01;
-                                }
+                                pose_in_obs = true;
+                                safety_inflation = aggressive_radius;
                             }
                             ROS_WARN("Potential collision may occur !!");
+                            ROS_WARN("safety_inflations -> %lf", safety_inflation);
                         }
+                        else{
+                            if( ! goal_in_obs && ! pose_in_obs){
+                                pose_in_obs = false;
+                                safety_inflation = peace_radius;
+                            }
+                        }
+                        break;
                     }
                 }
                 if(path_solving_process == Step::Finishing) break;
@@ -421,7 +448,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                         else if(obs_pose[i_obs].x < goal.x)   goal_border = -1;
                         else    goal_border = 0;   
                     }
-                    if(dis_obs_to_path[i_obs] >= (obs_size[i_obs].x+robot_size+normal_inflation)) is_path_clear = true;
+                    if(dis_obs_to_path[i_obs] >= (obs_size[i_obs].x+robot_size)) is_path_clear = true;
                     else{
                         // *Border consideration
                         if(goal.x >= begin_point.x && goal.y >= begin_point.y){
@@ -483,31 +510,15 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                         obs_enc++;
                         level++;                                            // *Obstacle encountered -> update the binary counter 
                         if(level > binary.size()-1)   binary.push_back(0);  // *Obstacle encountered -> update the binary counter
-                        // - ROS_WARN("obs_enc -> %d", obs_enc);
+                        ROS_WARN("obs_enc -> %d", obs_enc);
                         // *If more than 2 obstacles -> replace the point with the correct one
                         if(obs_enc >= 2){
                             ROS_INFO("|----------------- Replacing Process Started -----------------|");
                             // *Calculate the tangent line of the two obstacles(which_obs -> old data, i_obs -> new data)
-                            // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
-                            for(int i_obs=0; i_obs<obs_pose.size(); i_obs++){
-                                // ! recently changed: pose -> path_point[path_point.size()-2] 
-                                if(dis_point_to_point(obs_pose[i_obs], path_point[path_point.size()-2]) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
-                                    if(!prev_path.empty()){
-                                        Final_path_responce = prev_path;
-                                        path_solving_process = Step::Finishing;
-                                    }
-                                    else{
-                                        for(int i_size = 0; i_size < obs_size.size(); i_size++){
-                                            normal_inflation = 0.01;
-                                            safety_inflation = 0.01;
-                                        }
-                                    }
-                                    ROS_WARN("Potential collision may occur !!");
-                                }
-                            }
-                            if(path_solving_process == Step::Finishing) break;  
+                            ROS_INFO("robot line confirm point -> %lf,%lf", path_point[path_point.size()-2].x,path_point[path_point.size()-2].y);
                             obs_line.line_param_insert_cc(last_obs_pose, obs_pose[i_obs], last_obs_avoid_radius, (obs_size[i_obs].x+robot_size+safety_inflation));
-                            robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs_pose, last_obs_avoid_radius);
+                            if((path_point.size()-2))    robot_line.line_param_insert_pc(path_point[path_point.size()-2], last_obs_pose, last_obs_avoid_radius);
+                            else    robot_line.line_param_insert_pc(Begin_Point, last_obs_pose, last_obs_avoid_radius);
                             // *Find the intersection of obs_tan & robot_tan
                             intersection_1 = obs_line.line_intersection_14(robot_line, obs_line, 11, path_point.back());   // *Robot line 1 or 2 -> obs line 1
                             intersection_2 = obs_line.line_intersection_14(robot_line, obs_line, 12, path_point.back());   // *Robot line 1 or 2 -> obs line 2
@@ -538,26 +549,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
             if(path_solving_process == Step::Planning){
                 ROS_WARN("<----------- Planning ----------->");
                 ROS_INFO("obstacle detected -> (%lf, %lf)", obs_pose[which_obs].x, obs_pose[which_obs].y);
-                // - ROS_INFO("begin point -> (%lf, %lf)", begin_point.x, begin_point.y);
-
-                // ? Gaurd -> Stablize the path in case of the robot went into the obstacle inflations by accident 
-                for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-                    // ! recently changed: pose -> begin_point 
-                    if(dis_point_to_point(obs_pose[i_obs], begin_point) <= (obs_size[i_obs].x+robot_size+safety_inflation)){
-                        if(!prev_path.empty()){
-                            Final_path_responce = prev_path;
-                            path_solving_process = Step::Finishing;
-                        }
-                        else{
-                            for(int i_size = 0; i_size < obs_size.size(); i_size++){
-                                normal_inflation = 0.01;
-                                safety_inflation = 0.01;
-                            }
-                        }
-                        ROS_WARN("Potential collision may occur !!");
-                    }
-                }
-                if(path_solving_process == Step::Finishing) break;
+                ROS_INFO("begin point -> (%lf, %lf)", begin_point.x, begin_point.y);
                 // TODO: If the robot is already inside the safety inflation the radius should shrink !!
                 goal_line.line_param_insert_pc(goal, obs_pose[which_obs], (obs_size[which_obs].x+robot_size+safety_inflation));
                 robot_line.line_param_insert_pc(begin_point, obs_pose[which_obs], (obs_size[which_obs].x+robot_size+safety_inflation));
@@ -588,7 +580,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                 for(int m = 0; m < multipath.size(); m++){
                     for(int s = 1; s < multipath[m].size(); s++){
                         // *Cost regarding path's distance
-                        if(s == 1)   cost_buffer = dis_point_to_point(multipath[m][s],Begin_Point);
+                        if(s == 1)   cost_buffer = dis_point_to_point(multipath[m][s],pose);
                         else    cost_buffer += dis_point_to_point(multipath[m][s],multipath[m][s-1]);
                         // *Cost regarding previous path
                         if((s < multipath[m].size()-1) && !prev_path.empty()){
@@ -605,7 +597,7 @@ std::vector<geometry_msgs::PoseStamped> Path_Solving_Process(Point Begin_Point, 
                         }
                         // *Avoid path went into obstacles
                         for(int i_obs = 0; i_obs < obs_pose.size(); i_obs++){
-                            if(dis_point_to_point(multipath[m][s], obs_pose[i_obs]) <= (obs_size[i_obs].x+robot_size+normal_inflation))    cost_buffer += 66;
+                            if(dis_point_to_point(multipath[m][s], obs_pose[i_obs]) <= (obs_size[i_obs].x+robot_size))    cost_buffer += 66;
                         }
                         // *Avoid path went outside the map
                         if(!static_boundaries_check(multipath[m][s]))   cost_buffer += 666;
@@ -754,33 +746,36 @@ void Line_tan::line_param_insert_pc(Point point_on_line, Point point_outside, do
     // TODO: check for c1 abs !!
     // *The parameter of the equation of the two tangent line
     // *ax+by+c = 0
-    if( ! isnan(Line_tan::tan.I)){
-        Line_tan::a1 = Line_tan::tan.I;
-        Line_tan::b1 = -1;
-        Line_tan::c1 = point_on_line.y-Line_tan::tan.I*point_on_line.x;
-        // ROS_WARN("abs check -> %lf",a1*point_outside.x-point_outside.y+c1);
-    }
-    else{
+    // if( ! isnan(Line_tan::tan.I)){
+    if(!m2){
+        Line_tan::a1 = 0;
+        Line_tan::b1 = 1;
+        Line_tan::c1 = -(point_on_line.y);
+        Line_tan::a2 = 0;
+        Line_tan::b2 = 1;
+        Line_tan::c2 = -(point_on_line.y);
+    }    
+    else if(!m0){
         Line_tan::a1 = 1;
         Line_tan::b1 = 0;
         Line_tan::c1 = -(point_on_line.x);
-    }
-    if( ! isnan(Line_tan::tan.II)){
-        Line_tan::a2 = Line_tan::tan.II;
-        Line_tan::b2 = -1;
-        Line_tan::c2 = point_on_line.y-Line_tan::tan.II*point_on_line.x;
-        // ROS_WARN("abs check -> %lf",a2*point_outside.x-point_outside.y+c2);
-    }
-    else{
         Line_tan::a2 = 1;
         Line_tan::b2 = 0;
         Line_tan::c2 = -(point_on_line.x);
     }
+    else{
+        Line_tan::a1 = Line_tan::tan.I;
+        Line_tan::b1 = -1;
+        Line_tan::c1 = point_on_line.y-Line_tan::tan.I*point_on_line.x;
+        Line_tan::a2 = Line_tan::tan.II;
+        Line_tan::b2 = -1;
+        Line_tan::c2 = point_on_line.y-Line_tan::tan.II*point_on_line.x;
+    }
     // - ROS_WARN("point_on_line,point_outside -> (%lf,%lf),(%lf,%lf)",point_on_line.x,point_on_line.y,point_outside.x,point_outside.y);
-    // - ROS_WARN("m -> (%lf,%lf,%lf)", m0,m1,m2);
-    // - ROS_WARN("tan -> (%lf,%lf)", tan.I,tan.II);
+    ROS_INFO("m -> (%lf,%lf,%lf)", m0,m1,m2);
+    ROS_INFO("tan -> (%lf,%lf)", tan.I,tan.II);
     // - for(int i=0; i<2; i++)  ROS_FATAL("dis %lf",dis_point_to_point(obs_pose_static[i], point_on_line));
-    // - ROS_WARN("1:(%lf,%lf,%lf), 2:(%lf,%lf,%lf)", a1,b1,c1,a2,b2,c2);
+    ROS_INFO("1:(%lf,%lf,%lf), 2:(%lf,%lf,%lf)", a1,b1,c1,a2,b2,c2);
  }
 // *Insert & calculate the parameters of circle - circle line
 void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, double radius2){
@@ -804,83 +799,83 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
     // *Outer
     // TODO: vertical line check
     // TODO: obs too close -> shrink the radius & the cost function should denied it 
-    if( ! isnan(Line_tan::tan.I)){
+    // if( ! isnan(Line_tan::tan.I)){
         Line_tan::a1 = Line_tan::tan.I;
         Line_tan::b1 = -1;
         Line_tan::c1 = -(sqrt((a1*a1)+1)*radius1)-(a1*obs1.x)+obs1.y;
         // ? Check for abs -> -
-        ROS_WARN("abs check -> %lf",a1*obs1.x-obs1.y+c1);
-        if((a1*obs1.x-obs1.y+c1) > 0)   c1 = (sqrt((a1*a1)+1)*radius1)-(a1*obs1.x)+obs1.y;
-        ROS_WARN("abs check -> %lf",a1*obs1.x-obs1.y+c1);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, outer");
-        Line_tan::a1 = 1;
-        Line_tan::b1 = 0;
-        if(delta_r){
-            if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x-radius1);
-            if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x-radius1);
-        }
-        else    Line_tan::c1 = -(obs1.x+radius1);
-    }
-    if( ! isnan(Line_tan::tan.II)){
+        // ROS_WARN("abs check -> %lf",a1*obs1.x-obs1.y+c1);
+        // if((a1*obs1.x-obs1.y+c1) > 0)   c1 = (sqrt((a1*a1)+1)*radius1)-(a1*obs1.x)+obs1.y;
+        // ROS_WARN("abs check -> %lf",a1*obs1.x-obs1.y+c1);
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, outer");
+    //     Line_tan::a1 = 1;
+    //     Line_tan::b1 = 0;
+    //     if(delta_r){
+    //         if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x-radius1);
+    //         if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x-radius1);
+    //     }
+    //     else    Line_tan::c1 = -(obs1.x+radius1);
+    // }
+    // if( ! isnan(Line_tan::tan.II)){
         Line_tan::a2 = Line_tan::tan.II;
         Line_tan::b2 = -1;
         Line_tan::c2 = (sqrt((a2*a2)+1)*radius1)-(a2*obs1.x)+obs1.y;
         // ? Check for abs -> +
-        ROS_WARN("abs check -> %lf",a2*obs1.x-obs1.y+c2);
-        if((a2*obs1.x-obs1.y+c2) < 0)   c2 = -(sqrt((a2*a2)+1)*radius1)-(a2*obs1.x)+obs1.y;
-        ROS_WARN("abs check -> %lf",a2*obs1.x-obs1.y+c2);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, outer");
-        Line_tan::a2 = 1;
-        Line_tan::b2 = 0;
-        if(delta_r){
-            if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x-radius1);
-            if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x-radius1);
-        }
-        else    Line_tan::c2 = -(obs1.x-radius1);
-    }
+        // ROS_WARN("abs check -> %lf",a2*obs1.x-obs1.y+c2);
+        // if((a2*obs1.x-obs1.y+c2) < 0)   c2 = -(sqrt((a2*a2)+1)*radius1)-(a2*obs1.x)+obs1.y;
+        // ROS_WARN("abs check -> %lf",a2*obs1.x-obs1.y+c2);
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, outer");
+    //     Line_tan::a2 = 1;
+    //     Line_tan::b2 = 0;
+    //     if(delta_r){
+    //         if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x-radius1);
+    //         if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x-radius1);
+    //     }
+    //     else    Line_tan::c2 = -(obs1.x-radius1);
+    // }
     // *Cross
     // ! tan.III is strange -> (+ or -) ?
     // ! My math sucks -> It is fine for now
-    if( ! isnan(Line_tan::tan.III)){
+    // if( ! isnan(Line_tan::tan.III)){
         Line_tan::a3 = Line_tan::tan.III;
         Line_tan::b3 = -1;
-        Line_tan::c3 = -(sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
+        Line_tan::c3 = (sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
         // ? Check for abs -> +
-        ROS_WARN("abs check -> %lf",a3*obs1.x-obs1.y+c3);
-        if((a3*obs1.x-obs1.y+c3) > 0)   c3 = (sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
-        ROS_WARN("abs check -> %lf",a3*obs1.x-obs1.y+c3);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, cross");
-        Line_tan::a3 = 1;
-        Line_tan::b3 = 0;
-        if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
-        else    Line_tan::c3 = -(obs1.x+radius1);
-    }
-    if( ! isnan(Line_tan::tan.IIII)){
+        // ROS_WARN("abs check -> %lf",a3*obs1.x-obs1.y+c3);
+        // if((a3*obs1.x-obs1.y+c3) > 0)   c3 = -(sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
+        // ROS_WARN("abs check -> %lf",a3*obs1.x-obs1.y+c3);
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, cross");
+    //     Line_tan::a3 = 1;
+    //     Line_tan::b3 = 0;
+    //     if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
+    //     else    Line_tan::c3 = -(obs1.x+radius1);
+    // }
+    // if( ! isnan(Line_tan::tan.IIII)){
         Line_tan::a4 = Line_tan::tan.IIII;
         Line_tan::b4 = -1;
-        Line_tan::c4 = (sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
+        Line_tan::c4 = -(sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
         // ? Check for abs -> -
-        ROS_WARN("abs check -> %lf",a4*obs1.x-obs1.y+c4);
-        if((a4*obs1.x-obs1.y+c4) < 0)   c4 = -(sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
-        ROS_WARN("abs check -> %lf",a4*obs1.x-obs1.y+c4);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, cross");
-        Line_tan::a4 = 1;
-        Line_tan::b4 = 0;
-        if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
-        else    Line_tan::c3 = -(obs1.x+radius1);
-    }
+        // ROS_WARN("abs check -> %lf",a4*obs1.x-obs1.y+c4);
+        // if((a4*obs1.x-obs1.y+c4) < 0)   c4 = (sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
+        // ROS_WARN("abs check -> %lf",a4*obs1.x-obs1.y+c4);
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, cross");
+    //     Line_tan::a4 = 1;
+    //     Line_tan::b4 = 0;
+    //     if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
+    //     else    Line_tan::c3 = -(obs1.x+radius1);
+    // }
     ROS_WARN("(c1, c2, c3, c4) -> (%lf, %lf, %lf, %lf)", c1, c2, c3, c4);
 }
 // *Find out the intersections of 2 lines & 2 lines
@@ -928,10 +923,10 @@ Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point confir
     double delta, delta_x, delta_y, confirm_1, confirm_2;
 
     // - ROS_WARN("confirm_point for 2 robot line = (%lf, %lf)", confirm_point.x, confirm_point.y);
-    // - ROS_WARN("intersection_14 -> 1 : (%lf, %lf, %lf)", t.a1, t.b1, t.c1);
-    // - ROS_WARN("intersection_14 -> 2 : (%lf, %lf, %lf)", t.a2, t.b2, t.c2);   
-    // - ROS_WARN("confirm 1 -> %lf", (t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1));
-    // - ROS_WARN("confirm 2 -> %lf", (t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2));
+    ROS_WARN("intersection_14 -> 1 : (%lf, %lf, %lf)", t.a1, t.b1, t.c1);
+    ROS_WARN("intersection_14 -> 2 : (%lf, %lf, %lf)", t.a2, t.b2, t.c2);   
+    ROS_WARN("confirm 1 -> %lf", (t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1));
+    ROS_WARN("confirm 2 -> %lf", (t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2));
     
     confirm_1 = fabs(t.a1*confirm_point.x + t.b1*confirm_point.y + t.c1);
     confirm_2 = fabs(t.a2*confirm_point.x + t.b2*confirm_point.y + t.c2);
@@ -986,7 +981,7 @@ Point Line_tan::line_intersection_14(Line_tan t, Line_tan u, int n, Point confir
 
     intersection.x = delta_x/delta;
     intersection.y = delta_y/delta;
-    // - ROS_INFO("intersection_cc : (%lf, %lf)", intersection.x, intersection.y);
+    ROS_INFO("intersection_cc : (%lf, %lf)", intersection.x, intersection.y);
     // - ROS_INFO("<------------------------------------------>");
     return(intersection);
 }
@@ -1077,7 +1072,7 @@ Point Line_tan::line_intersection_12(Line_tan t, Line_tan u, Point confirm_point
     if(dis_1 <= dis_2)  intersection = sol_1;
     else if(dis_2 < dis_1)  intersection = sol_2;
 
-    // - ROS_INFO("intersection_12 : (%lf, %lf)", intersection.x, intersection.y);
+    ROS_INFO("intersection_12 : (%lf, %lf)", intersection.x, intersection.y);
     return(intersection);
 }
 // *Bubble sort for intersection filter
@@ -1233,7 +1228,6 @@ Point Intersection_filter_22(Point a, Point b, Point c, Point d, int rank, Point
         else if(valid[sequence[1]]) point_sequence = sequence[1];
         else if(valid[sequence[2]]) point_sequence = sequence[2];
         else if(valid[sequence[3]]) point_sequence = sequence[3];
-        else    point_sequence = 4;
     }
     // *Determine the point base on priority & valid -> Second shortest path
     else if(rank == 1){
@@ -1250,7 +1244,6 @@ Point Intersection_filter_22(Point a, Point b, Point c, Point d, int rank, Point
             }
         }
         if(cut == 1)    cut = 0;
-        else    point_sequence = 4;
     }
     else    ROS_WARN("invalid rank");
 
@@ -1259,11 +1252,7 @@ Point Intersection_filter_22(Point a, Point b, Point c, Point d, int rank, Point
     if(point_sequence == 1)  point = b;
     if(point_sequence == 2)  point = c;
     if(point_sequence == 3)  point = d;
-    if(point_sequence == 4){
-        ROS_WARN("No Valid Point -> Alternative point is going to be select");
-        point.x = 0.0;
-        point.y = 0.0;
-    }
+
 
     // - ROS_INFO("rank : %d", rank);
     // - ROS_INFO("Point_select -> (%lf,%lf)", point.x, point.y);

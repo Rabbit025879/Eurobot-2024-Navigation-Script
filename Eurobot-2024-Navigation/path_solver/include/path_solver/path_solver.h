@@ -21,8 +21,16 @@
 #include <string> 
 
 #define robot_size 0.14
+#define rival_size 0.15
+#define pot_size 0.1
 #define nodes_cost_param 1.2
 #define divied_path 60 
+#define normal_inflation_rival 0.03
+#define normal_inflation_pot 0.03
+#define normal_inflation_plant 0.03
+#define normal_inflation_wall 0.01
+#define peace_radius 0.07
+#define aggressive_radius 0.02
 
 enum class Step{
     Checking = 1,
