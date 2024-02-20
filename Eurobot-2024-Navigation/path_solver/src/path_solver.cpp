@@ -755,28 +755,28 @@ void Line_tan::line_param_insert_pc(Point point_on_line, Point point_outside, do
     // TODO: check for c1 abs !!
     // *The parameter of the equation of the two tangent line
     // *ax+by+c = 0
-    if( ! isnan(Line_tan::tan.I)){
+    // if( ! isnan(Line_tan::tan.I)){
         Line_tan::a1 = Line_tan::tan.I;
         Line_tan::b1 = -1;
         Line_tan::c1 = point_on_line.y-Line_tan::tan.I*point_on_line.x;
         // ROS_WARN("abs check -> %lf",a1*point_outside.x-point_outside.y+c1);
-    }
-    else{
-        Line_tan::a1 = 1;
-        Line_tan::b1 = 0;
-        Line_tan::c1 = -(point_on_line.x);
-    }
-    if( ! isnan(Line_tan::tan.II)){
+    // }
+    // else{
+    //     Line_tan::a1 = 1;
+    //     Line_tan::b1 = 0;
+    //     Line_tan::c1 = -(point_on_line.x);
+    // }
+    // if( ! isnan(Line_tan::tan.II)){
         Line_tan::a2 = Line_tan::tan.II;
         Line_tan::b2 = -1;
         Line_tan::c2 = point_on_line.y-Line_tan::tan.II*point_on_line.x;
         // ROS_WARN("abs check -> %lf",a2*point_outside.x-point_outside.y+c2);
-    }
-    else{
-        Line_tan::a2 = 1;
-        Line_tan::b2 = 0;
-        Line_tan::c2 = -(point_on_line.x);
-    }
+    // }
+    // else{
+    //     Line_tan::a2 = 1;
+    //     Line_tan::b2 = 0;
+    //     Line_tan::c2 = -(point_on_line.x);
+    // }
     // - ROS_WARN("point_on_line,point_outside -> (%lf,%lf),(%lf,%lf)",point_on_line.x,point_on_line.y,point_outside.x,point_outside.y);
     // - ROS_WARN("m -> (%lf,%lf,%lf)", m0,m1,m2);
     // - ROS_WARN("tan -> (%lf,%lf)", tan.I,tan.II);
@@ -805,7 +805,7 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
     // *Outer
     // TODO: vertical line check
     // TODO: obs too close -> shrink the radius & the cost function should denied it 
-    if( ! isnan(Line_tan::tan.I)){
+    // if( ! isnan(Line_tan::tan.I)){
         Line_tan::a1 = Line_tan::tan.I;
         Line_tan::b1 = -1;
         Line_tan::c1 = -(sqrt((a1*a1)+1)*radius1)-(a1*obs1.x)+obs1.y;
@@ -813,20 +813,20 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
         ROS_WARN("abs check -> %lf",a1*obs1.x-obs1.y+c1);
         if((a1*obs1.x-obs1.y+c1) > 0)   c1 = (sqrt((a1*a1)+1)*radius1)-(a1*obs1.x)+obs1.y;
         ROS_WARN("abs check -> %lf",a1*obs1.x-obs1.y+c1);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, outer");
-        Line_tan::a1 = 1;
-        Line_tan::b1 = 0;
-        if(delta_r){
-            if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x-radius1);
-            if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x-radius1);
-        }
-        else    Line_tan::c1 = -(obs1.x+radius1);
-    }
-    if( ! isnan(Line_tan::tan.II)){
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, outer");
+    //     Line_tan::a1 = 1;
+    //     Line_tan::b1 = 0;
+    //     if(delta_r){
+    //         if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x-radius1);
+    //         if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c1 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c1 = -(obs1.x-radius1);
+    //     }
+    //     else    Line_tan::c1 = -(obs1.x+radius1);
+    // }
+    // if( ! isnan(Line_tan::tan.II)){
         Line_tan::a2 = Line_tan::tan.II;
         Line_tan::b2 = -1;
         Line_tan::c2 = (sqrt((a2*a2)+1)*radius1)-(a2*obs1.x)+obs1.y;
@@ -834,23 +834,23 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
         ROS_WARN("abs check -> %lf",a2*obs1.x-obs1.y+c2);
         if((a2*obs1.x-obs1.y+c2) < 0)   c2 = -(sqrt((a2*a2)+1)*radius1)-(a2*obs1.x)+obs1.y;
         ROS_WARN("abs check -> %lf",a2*obs1.x-obs1.y+c2);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, outer");
-        Line_tan::a2 = 1;
-        Line_tan::b2 = 0;
-        if(delta_r){
-            if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x-radius1);
-            if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x+radius1);
-            if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x-radius1);
-        }
-        else    Line_tan::c2 = -(obs1.x-radius1);
-    }
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, outer");
+    //     Line_tan::a2 = 1;
+    //     Line_tan::b2 = 0;
+    //     if(delta_r){
+    //         if((obs1.x > obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x-radius1);
+    //         if((obs1.x > obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 > radius2))    Line_tan::c2 = -(obs1.x+radius1);
+    //         if((obs1.x < obs2.x) && (radius1 < radius2))    Line_tan::c2 = -(obs1.x-radius1);
+    //     }
+    //     else    Line_tan::c2 = -(obs1.x-radius1);
+    // }
     // *Cross
     // ! tan.III is strange -> (+ or -) ?
     // ! My math sucks -> It is fine for now
-    if( ! isnan(Line_tan::tan.III)){
+    // if( ! isnan(Line_tan::tan.III)){
         Line_tan::a3 = Line_tan::tan.III;
         Line_tan::b3 = -1;
         Line_tan::c3 = -(sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
@@ -858,15 +858,15 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
         ROS_WARN("abs check -> %lf",a3*obs1.x-obs1.y+c3);
         if((a3*obs1.x-obs1.y+c3) > 0)   c3 = (sqrt((a3*a3)+1)*radius1)-(a3*obs1.x)+obs1.y;
         ROS_WARN("abs check -> %lf",a3*obs1.x-obs1.y+c3);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, cross");
-        Line_tan::a3 = 1;
-        Line_tan::b3 = 0;
-        if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
-        else    Line_tan::c3 = -(obs1.x+radius1);
-    }
-    if( ! isnan(Line_tan::tan.IIII)){
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, cross");
+    //     Line_tan::a3 = 1;
+    //     Line_tan::b3 = 0;
+    //     if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
+    //     else    Line_tan::c3 = -(obs1.x+radius1);
+    // }
+    // if( ! isnan(Line_tan::tan.IIII)){
         Line_tan::a4 = Line_tan::tan.IIII;
         Line_tan::b4 = -1;
         Line_tan::c4 = (sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
@@ -874,14 +874,14 @@ void Line_tan::line_param_insert_cc(Point obs1, Point obs2, double radius1, doub
         ROS_WARN("abs check -> %lf",a4*obs1.x-obs1.y+c4);
         if((a4*obs1.x-obs1.y+c4) < 0)   c4 = -(sqrt((a4*a4)+1)*radius1)-(a4*obs1.x)+obs1.y;
         ROS_WARN("abs check -> %lf",a4*obs1.x-obs1.y+c4);
-    }
-    else{
-        ROS_WARN("Vertical -> cc, cross");
-        Line_tan::a4 = 1;
-        Line_tan::b4 = 0;
-        if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
-        else    Line_tan::c3 = -(obs1.x+radius1);
-    }
+    // }
+    // else{
+    //     ROS_WARN("Vertical -> cc, cross");
+    //     Line_tan::a4 = 1;
+    //     Line_tan::b4 = 0;
+    //     if(obs1.x >= obs2.x)    Line_tan::c3 = -(obs1.x-radius1);
+    //     else    Line_tan::c3 = -(obs1.x+radius1);
+    // }
     ROS_WARN("(c1, c2, c3, c4) -> (%lf, %lf, %lf, %lf)", c1, c2, c3, c4);
 }
 // *Find out the intersections of 2 lines & 2 lines
